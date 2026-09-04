@@ -115,3 +115,44 @@ export async function updateParentAgentConfig(input: {
   if (error || !data) throw storeError(error ?? { message: "Could not save parent agent." });
   return data as ParentAgentConfig;
 }
+
+export async function getCategory(id: string): Promise<AiCategory> {
+  const { data, error } = await requireStore()
+    .from("ai_categories")
+    .select("*")
+    .eq("id", id)
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .maybeSingle();
+  if (error) throw storeError(error);
+  if (!data) throw new AiManagementStoreError("Category not found.", 404);
+  return data as AiCategory;
+}
+
+export async function updateCategory(
+  id: string,
+  input: {
+    name: string;
+    description: string;
+    instructions: string;
+    status: "active" | "inactive";
+  }
+): Promise<AiCategory> {
+  const { data, error } = await requireStore()
+    .from("ai_categories")
+    .update(input)
+    .eq("id", id)
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .select("*")
+    .single();
+  if (error || !data) throw storeError(error ?? { message: "Could not update category." });
+  return data as AiCategory;
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  const { error } = await requireStore()
+    .from("ai_categories")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID);
+  if (error) throw storeError(error);
+}

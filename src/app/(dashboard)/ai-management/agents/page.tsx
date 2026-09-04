@@ -1,5 +1,5 @@
-import { AgentsPageContent } from "@/components/ai-management/agents-page-content";
+import { AiAgentsPageContent } from "@/components/ai-management/ai-agents-page-content";
 
 export default function AiAgentsPage() {
-	return <AgentsPageContent />;
+  return <AiAgentsPageContent />;
 }

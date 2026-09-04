@@ -1,5 +1,5 @@
-import { ManagementPlaceholder } from "@/components/ai-management/management-placeholder";
+import { AiToolsPageContent } from "@/components/ai-management/ai-tools-page-content";
 
 export default function ToolsPage() {
-  return <ManagementPlaceholder title="Tools" description="Review backend-managed tools and assign them to specialized agents." nextHref="/agents" nextLabel="Manage agents" />;
+  return <AiToolsPageContent />;
 }

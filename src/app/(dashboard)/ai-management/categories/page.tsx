@@ -1,5 +1,5 @@
-import { ManagementPlaceholder } from "@/components/ai-management/management-placeholder";
+import { CategoriesPageContent } from "@/components/ai-management/categories-page-content";
 
 export default function CategoriesPage() {
-  return <ManagementPlaceholder title="Categories" description="Group specialized agents under a shared domain and instruction set." nextHref="/agents" nextLabel="Manage agents" />;
+  return <CategoriesPageContent />;
 }

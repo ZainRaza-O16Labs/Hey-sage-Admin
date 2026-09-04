@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function LegacyAgentsPage() {
+export default function AgentsPage() {
   redirect("/ai-management/agents");
 }

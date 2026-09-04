@@ -17,23 +17,37 @@ import {
 function pageTitle(pathname: string) {
   if (pathname === "/ai-management" || pathname === "/ai-management/dashboard") return "AI Dashboard";
   if (pathname.startsWith("/ai-management/parent-agent")) return "Parent Agent";
-  if (pathname.startsWith("/ai-management/categories")) return "Categories";
+  if (pathname.startsWith("/ai-management/categories/new")) return "Create Category";
+  if (pathname.includes("/categories/") && pathname.endsWith("/edit")) return "Edit Category";
+  if (pathname.includes("/categories/") && pathname.endsWith("/knowledge")) return "Category Knowledge";
+  if (pathname.startsWith("/ai-management/categories")) return "Category Details";
+  if (pathname.startsWith("/ai-management/agents/new")) return "Create Agent";
+  if (pathname.includes("/agents/") && pathname.endsWith("/edit")) return "Edit Agent";
+  if (pathname.includes("/agents/") && pathname.endsWith("/tools")) return "Agent Tools";
+  if (pathname.includes("/agents/") && pathname.endsWith("/knowledge")) return "Agent Knowledge";
+  if (pathname.includes("/agents/") && pathname.endsWith("/preview")) return "Agent Preview";
   if (pathname.startsWith("/ai-management/agents")) return "Agents";
   if (pathname.startsWith("/ai-management/tools")) return "Tools";
   if (pathname.startsWith("/ai-management/knowledge-bases")) return "Knowledge Bases";
   if (pathname.startsWith("/ai-management/conversations")) return "Conversations";
   if (pathname.startsWith("/ai-management/playground")) return "Playground";
   if (pathname.startsWith("/ai-management/settings")) return "AI Settings";
-  if (pathname === "/agents/new") return "Create Agent";
-  if (pathname.startsWith("/agents/")) return "Edit Agent";
-  if (pathname === "/agents") return "Agents";
-  if (pathname === "/conversations") return "Conversations";
-  return "Dashboard";
+  return "AI Management";
 }
 
 function agentBackHref(pathname: string): string | null {
-  if (pathname === "/agents/new") return "/agents";
-  if (/^\/agents\/[^/]+$/.test(pathname)) return "/agents";
+  if (pathname.startsWith("/ai-management/agents/new")) return "/ai-management/agents";
+  if (pathname.startsWith("/ai-management/agents/") && pathname.endsWith("/edit")) return pathname.replace(/\/edit$/, "");
+  if (pathname.startsWith("/ai-management/agents/") && pathname.endsWith("/tools")) return pathname.replace(/\/tools$/, "");
+  if (pathname.startsWith("/ai-management/agents/") && pathname.endsWith("/knowledge")) return pathname.replace(/\/knowledge$/, "");
+  if (pathname.startsWith("/ai-management/agents/") && pathname.endsWith("/preview")) return pathname.replace(/\/preview$/, "");
+  if (pathname.startsWith("/ai-management/categories/new")) return "/ai-management/categories";
+  if (pathname.startsWith("/ai-management/categories/") && pathname.endsWith("/edit")) return pathname.replace(/\/edit$/, "");
+  if (pathname.startsWith("/ai-management/categories/") && pathname.endsWith("/knowledge")) return pathname.replace(/\/knowledge$/, "");
+  if (pathname.startsWith("/ai-management/knowledge-bases/new")) return "/ai-management/knowledge-bases";
+  if (pathname.startsWith("/ai-management/knowledge-bases/") && pathname.endsWith("/edit")) return pathname.replace(/\/edit$/, "");
+  if (pathname.startsWith("/ai-management/tools/")) return "/ai-management/tools";
+  if (pathname.startsWith("/ai-management/conversations/") && !pathname.endsWith("/conversations")) return "/ai-management/conversations";
   return null;
 }
 
