@@ -11,7 +11,7 @@ import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AIFilterBar } from "@/components/ai-management/ai-filter-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AiTool } from "@/lib/ai-management/tools";
 
