@@ -110,6 +110,8 @@ export async function createAgent(input: AgentInput): Promise<Agent> {
       description: input.description,
       instructions: input.instructions,
       status: input.status,
+      lifecycle_status: input.lifecycle_status ?? "draft",
+      category_id: input.category_id ?? null,
       voice_id: input.voice_id ?? null,
       voice_name: input.voice_name ?? null,
       configuration: input.configuration ?? {},
@@ -144,6 +146,12 @@ export async function updateAgent(id: string, patch: AgentPatch): Promise<Agent>
   if ("configuration" in patch) {
     payload.configuration = patch.configuration ?? {};
   }
+  if ("lifecycle_status" in patch) {
+    payload.lifecycle_status = patch.lifecycle_status ?? "draft";
+  }
+  if ("category_id" in patch) {
+    payload.category_id = patch.category_id ?? null;
+  }
   const { data, error } = await supabase
     .from("agents")
     .update(payload)
@@ -163,6 +171,21 @@ export async function updateAgent(id: string, patch: AgentPatch): Promise<Agent>
 
 export async function deleteAgent(id: string): Promise<void> {
   const supabase = requireStore();
+
+  const { error: assignmentsError } = await supabase
+    .from("ai_agent_tools")
+    .delete()
+    .eq("agent_id", id);
+  if (assignmentsError && !isMissingRelation(assignmentsError.message)) {
+    throw new AgentsStoreError(assignmentsError.message);
+  }
+  const { error: kbAssignmentsError } = await supabase
+    .from("ai_agent_knowledge_bases")
+    .delete()
+    .eq("agent_id", id);
+  if (kbAssignmentsError && !isMissingRelation(kbAssignmentsError.message)) {
+    throw new AgentsStoreError(kbAssignmentsError.message);
+  }
 
   const { error: conversationsError } = await supabase
     .from("conversations")

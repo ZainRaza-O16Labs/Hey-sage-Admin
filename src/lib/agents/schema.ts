@@ -1,4 +1,9 @@
 export const AGENT_STATUSES = ["active", "inactive"] as const;
+export const AGENT_LIFECYCLE_STATUSES = [
+  "draft",
+  "unpublished",
+  "published",
+] as const;
 export const INSTRUCTIONS_STATUSES = [
   "pending",
   "analyzing",
@@ -15,6 +20,7 @@ export const DOCUMENT_STATUSES = [
 ] as const;
 
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
+export type AgentLifecycleStatus = (typeof AGENT_LIFECYCLE_STATUSES)[number];
 export type InstructionsStatus = (typeof INSTRUCTIONS_STATUSES)[number];
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
@@ -29,6 +35,8 @@ export type Agent = {
   instructions_generated_at: string | null;
   instructions_version: number;
   status: AgentStatus;
+  lifecycle_status: AgentLifecycleStatus;
+  category_id: string | null;
   voice_id: string | null;
   voice_name: string | null;
   configuration: Record<string, unknown>;
@@ -41,6 +49,8 @@ export type AgentInput = {
   description: string;
   instructions: string;
   status: AgentStatus;
+  lifecycle_status: AgentLifecycleStatus;
+  category_id?: string | null;
   voice_id?: string | null;
   voice_name?: string | null;
   configuration?: Record<string, unknown>;
@@ -92,6 +102,10 @@ function isStatus(value: string): value is AgentStatus {
   return AGENT_STATUSES.includes(value as AgentStatus);
 }
 
+function isLifecycleStatus(value: string): value is AgentLifecycleStatus {
+  return AGENT_LIFECYCLE_STATUSES.includes(value as AgentLifecycleStatus);
+}
+
 function isInstructionsStatus(value: string): value is InstructionsStatus {
   return INSTRUCTIONS_STATUSES.includes(value as InstructionsStatus);
 }
@@ -135,7 +149,16 @@ export function validateAgentInput(body: unknown): ValidationResult {
     status: isStatus(readString(source.status))
       ? (readString(source.status) as AgentStatus)
       : "active",
+    lifecycle_status: isLifecycleStatus(readString(source.lifecycle_status))
+      ? (readString(source.lifecycle_status) as AgentLifecycleStatus)
+      : "draft",
   };
+  if ("category_id" in source) {
+    data.category_id =
+      typeof source.category_id === "string" && source.category_id.trim()
+        ? source.category_id.trim()
+        : null;
+  }
 
   const errors = collectErrors(data);
   if (!data.instructions.trim()) {
@@ -170,6 +193,12 @@ export function validateAgentPatch(body: unknown): PatchValidationResult {
   if ("voice_name" in source) {
     data.voice_name = typeof source.voice_name === "string" ? source.voice_name.trim() || null : null;
   }
+  if ("category_id" in source) {
+    data.category_id =
+      typeof source.category_id === "string" && source.category_id.trim()
+        ? source.category_id.trim()
+        : null;
+  }
   if ("configuration" in source && source.configuration && typeof source.configuration === "object") {
     data.configuration = source.configuration as Record<string, unknown>;
   }
@@ -179,6 +208,16 @@ export function validateAgentPatch(body: unknown): PatchValidationResult {
       return { ok: false, errors: { status: "Status must be active or inactive." } };
     }
     data.status = status;
+  }
+  if ("lifecycle_status" in source) {
+    const lifecycleStatus = readString(source.lifecycle_status);
+    if (!isLifecycleStatus(lifecycleStatus)) {
+      return {
+        ok: false,
+        errors: { lifecycle_status: "Lifecycle must be draft, unpublished, or published." },
+      };
+    }
+    data.lifecycle_status = lifecycleStatus;
   }
 
   if (Object.keys(data).length === 0) {
@@ -216,6 +255,10 @@ function collectErrors(data: AgentPatch): FieldErrors {
     errors.status = "Status must be active or inactive.";
   }
 
+  if (data.lifecycle_status !== undefined && !isLifecycleStatus(data.lifecycle_status)) {
+    errors.lifecycle_status = "Lifecycle must be draft, unpublished, or published.";
+  }
+
   return errors;
 }
 
@@ -239,6 +282,13 @@ export function mapAgentRow(row: Record<string, unknown>): Agent {
     instructions_version:
       typeof row.instructions_version === "number" ? row.instructions_version : 0,
     status: isStatus(String(row.status)) ? (row.status as AgentStatus) : "active",
+    lifecycle_status: isLifecycleStatus(readString(row.lifecycle_status))
+      ? (row.lifecycle_status as AgentLifecycleStatus)
+      : "published",
+    category_id:
+      typeof row.category_id === "string" && row.category_id
+        ? row.category_id
+        : null,
     voice_id:
       typeof row.voice_id === "string" ? row.voice_id.trim() || null : null,
     voice_name:

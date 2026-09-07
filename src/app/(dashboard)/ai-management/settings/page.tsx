@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CheckCircle2, Loader2, Mic, XCircle } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,8 @@ type AiSettings = {
   default_top_k: number;
   similarity_threshold: number;
   memory_enabled: boolean;
+  elevenlabs_configured: boolean;
+  elevenlabs_source: "env" | "database" | "not_configured";
 };
 
 const defaultSettings: AiSettings = {
@@ -22,13 +25,23 @@ const defaultSettings: AiSettings = {
   default_top_k: 5,
   similarity_threshold: 0.7,
   memory_enabled: true,
+  elevenlabs_configured: false,
+  elevenlabs_source: "not_configured",
 };
+
+type ValidateState =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "ok"; detail: string }
+  | { state: "error"; detail: string };
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AiSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [elevenLabsKey, setElevenLabsKey] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [validate, setValidate] = useState<ValidateState>({ state: "idle" });
 
   useEffect(() => {
     fetch("/api/ai-management/settings")
@@ -37,7 +50,14 @@ export default function SettingsPage() {
         return null;
       })
       .then((data: { settings?: AiSettings } | null) => {
-        if (data?.settings) setSettings(data.settings);
+        if (data?.settings) {
+          setSettings({
+            ...defaultSettings,
+            ...data.settings,
+            elevenlabs_configured: data.settings.elevenlabs_configured ?? false,
+            elevenlabs_source: data.settings.elevenlabs_source ?? "not_configured",
+          });
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -51,19 +71,82 @@ export default function SettingsPage() {
   async function handleSave() {
     setSaving(true);
     setMessage(null);
+    setValidate({ state: "idle" });
     try {
+      const { elevenlabs_configured: _c, elevenlabs_source: _s, ...rest } = settings;
+      const body = {
+        ...rest,
+        ...(elevenLabsKey.trim()
+          ? { elevenlabs_api_key: elevenLabsKey.trim() }
+          : {}),
+      };
       const response = await fetch("/api/ai-management/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(body),
       });
-      if (response.ok) {
-        setMessage("Settings saved.");
+      const payload = (await response.json()) as { settings?: AiSettings; error?: string };
+      if (!response.ok) {
+        setMessage(payload.error ?? "Could not save settings.");
+        return;
+      }
+      if (payload.settings) setSettings(payload.settings);
+      setElevenLabsKey("");
+      setMessage("Settings saved.");
+    } catch {
+      setMessage("Could not save settings.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleValidate() {
+    setValidate({ state: "checking" });
+    try {
+      const response = await fetch("/api/ai-management/settings/elevenlabs/validate", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        detail?: string;
+        subscription?: string;
+        error?: string;
+      };
+      if (response.ok && payload.ok) {
+        setValidate({
+          state: "ok",
+          detail: `Connected · ${payload.subscription ?? "active"} plan`,
+        });
       } else {
-        setMessage("Settings API is not available yet. These settings require backend support.");
+        setValidate({
+          state: "error",
+          detail: payload.detail ?? payload.error ?? "Validation failed.",
+        });
       }
     } catch {
-      setMessage("Settings API is not available yet.");
+      setValidate({ state: "error", detail: "Could not reach the validation endpoint." });
+    }
+  }
+
+  async function handleClearElevenLabs() {
+    setElevenLabsKey("");
+    setValidate({ state: "idle" });
+    setSaving(true);
+    setMessage(null);
+    try {
+      await fetch("/api/ai-management/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ elevenlabs_api_key: "" }),
+      });
+      const response = await fetch("/api/ai-management/settings");
+      if (response.ok) {
+        const data = (await response.json()) as { settings?: AiSettings };
+        if (data.settings) setSettings(data.settings);
+      }
+      setMessage("ElevenLabs key removed.");
+    } catch {
+      setMessage("Could not remove the ElevenLabs key.");
     } finally {
       setSaving(false);
     }
@@ -72,10 +155,10 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <AiPageHeader title="AI Settings" description="Global model, retrieval, memory, and execution settings." />
+        <AiPageHeader title="AI Settings" description="Global model, retrieval, memory, voice, and execution settings." />
         <Card>
           <CardContent className="space-y-4 py-6">
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="space-y-2">
                 <div className="h-4 w-32 animate-pulse rounded bg-muted" />
                 <div className="h-8 w-full animate-pulse rounded-md bg-muted" />
@@ -91,7 +174,7 @@ export default function SettingsPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <AiPageHeader
         title="AI Settings"
-        description="Global model, retrieval, memory, and execution settings."
+        description="Global model, retrieval, memory, voice, and execution settings."
       />
 
       <Card>
@@ -183,6 +266,84 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-muted">
+              <Mic className="size-5 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle>Voice (ElevenLabs)</CardTitle>
+              <CardDescription>One global API key powers voice for every configured agent voice.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              {settings.elevenlabs_configured ? (
+                <CheckCircle2 className="size-4 text-emerald-600" />
+              ) : (
+                <XCircle className="size-4 text-destructive" />
+              )}
+              <span className="text-muted-foreground">
+                {settings.elevenlabs_source === "env"
+                  ? "Configured via ELEVENLABS_API_KEY environment variable."
+                  : settings.elevenlabs_source === "database"
+                    ? "Configured via the admin panel (stored server-side)."
+                    : "No ElevenLabs key configured. Voice falls back to Deepgram Aura."}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleValidate()}
+              disabled={validate.state === "checking"}
+            >
+              {validate.state === "checking" ? <Loader2 className="size-4 animate-spin" /> : null}
+              Validate Key
+            </Button>
+            {settings.elevenlabs_source === "database" && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => void handleClearElevenLabs()} disabled={saving}>
+                Remove Key
+              </Button>
+            )}
+          </div>
+
+          {validate.state === "ok" && (
+            <p className="flex items-center gap-2 text-sm text-emerald-600">
+              <CheckCircle2 className="size-4" />
+              {validate.detail}
+            </p>
+          )}
+          {validate.state === "error" && (
+            <p className="flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="size-4" />
+              {validate.detail}
+            </p>
+          )}
+
+          <div className="max-w-xl space-y-2">
+            <Label htmlFor="elevenlabs_key">ElevenLabs API key</Label>
+            <Input
+              id="elevenlabs_key"
+              type="password"
+              value={elevenLabsKey}
+              onChange={(e) => {
+                setElevenLabsKey(e.target.value);
+                setValidate({ state: "idle" });
+              }}
+              placeholder="sk_... (shown once at create time)"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Stored server-side only and never shown again. Agent-level voice ids are validated against this account.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex gap-2">
         <Button onClick={() => void handleSave()} disabled={saving}>
           {saving ? "Saving..." : "Save Settings"}
@@ -190,9 +351,7 @@ export default function SettingsPage() {
       </div>
 
       {message && (
-        <p className={message.includes("not available") || message.includes("not yet") ? "text-sm text-muted-foreground" : "text-sm text-muted-foreground"}>
-          {message}
-        </p>
+        <p className="text-sm text-muted-foreground">{message}</p>
       )}
     </div>
   );

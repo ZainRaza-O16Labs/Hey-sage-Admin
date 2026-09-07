@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteAgent, getAgent, updateAgent } from "@/lib/agents/store";
 import { isUuid, validateAgentPatch } from "@/lib/agents/schema";
+import { syncAgentAssignments } from "@/lib/ai-management/store";
 import {
   jsonError,
   requireApiUser,
@@ -54,6 +55,24 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     const agent = await updateAgent(id, parsed.data);
+
+    // Persist the relational tool + knowledge-base assignments when the config
+    // carries them (the agent form always mirrors both sources of truth).
+    const configuration = parsed.data.configuration;
+    if (configuration && typeof configuration === "object") {
+      const toolIds = Array.isArray(configuration.tools)
+        ? configuration.tools.filter((t): t is string => typeof t === "string")
+        : [];
+      const knowledgeBaseIds = Array.isArray(configuration.knowledge_base_ids)
+        ? configuration.knowledge_base_ids.filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [];
+      if (Array.isArray(configuration.tools) || Array.isArray(configuration.knowledge_base_ids)) {
+        await syncAgentAssignments(id, { toolIds, knowledgeBaseIds });
+      }
+    }
+
     return NextResponse.json({ agent });
   } catch (error) {
     return storeErrorResponse(error);

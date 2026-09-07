@@ -16,7 +16,7 @@ import {
 
 function pageTitle(pathname: string) {
   if (pathname === "/ai-management" || pathname === "/ai-management/dashboard") return "AI Dashboard";
-  if (pathname.startsWith("/ai-management/parent-agent")) return "Parent Agent";
+  if (pathname.startsWith("/ai-management/parent-agent")) return "AI Router";
   if (pathname.startsWith("/ai-management/categories/new")) return "Create Category";
   if (pathname.includes("/categories/") && pathname.endsWith("/edit")) return "Edit Category";
   if (pathname.includes("/categories/") && pathname.endsWith("/knowledge")) return "Category Knowledge";

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/auth/session";
 import { AgentsStoreError } from "@/lib/agents/store";
+import { AiManagementStoreError } from "@/lib/ai-management/store";
 import type { FieldErrors } from "@/lib/agents/schema";
 
 export async function requireApiUser() {
@@ -29,7 +30,7 @@ export function jsonError(message: string, status = 400, errors?: FieldErrors) {
 }
 
 export function storeErrorResponse(error: unknown) {
-  if (error instanceof AgentsStoreError) {
+  if (error instanceof AgentsStoreError || error instanceof AiManagementStoreError) {
     return jsonError(error.message, error.status);
   }
   const message = error instanceof Error ? error.message : "Unexpected error.";

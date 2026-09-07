@@ -13,6 +13,10 @@ import {
   Search,
   Check,
   Plus,
+  Mic,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
@@ -64,6 +68,9 @@ type FormValue = {
   description: string;
   instructions: string;
   status: AgentInput["status"];
+  lifecycle: AgentInput["lifecycle_status"];
+  voiceId: string;
+  voiceName: string;
   runtime: AgentRuntimeConfig;
 };
 
@@ -72,6 +79,9 @@ const emptyForm: FormValue = {
   description: "",
   instructions: "",
   status: "active",
+  lifecycle: "draft",
+  voiceId: "",
+  voiceName: "",
   runtime: defaultRuntimeConfig(),
 };
 
@@ -87,7 +97,13 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           description: agent.description,
           instructions: agent.instructions,
           status: agent.status,
-          runtime: runtimeConfigFromConfiguration(agent.configuration),
+          lifecycle: agent.lifecycle_status,
+          voiceId: agent.voice_id ?? "",
+          voiceName: agent.voice_name ?? "",
+          runtime: {
+            ...runtimeConfigFromConfiguration(agent.configuration),
+            category_id: agent.category_id ?? "",
+          },
         }
       : emptyForm,
   );
@@ -115,6 +131,44 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   const [pending, setPending] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState<
+    | { state: "idle" }
+    | { state: "checking" }
+    | { state: "ok"; detail: string }
+    | { state: "error"; detail: string }
+  >({ state: "idle" });
+
+  async function handleValidateVoice() {
+    if (!agentId || !form.voiceId.trim()) {
+      setVoiceStatus({
+        state: "error",
+        detail: "Save the agent first, then add a voice id to validate it.",
+      });
+      return;
+    }
+    setVoiceStatus({ state: "checking" });
+    try {
+      const response = await fetch(
+        `/api/ai-management/agents/${agentId}/voice/validate`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        detail?: string;
+        error?: string;
+      };
+      if (response.ok && payload.ok) {
+        setVoiceStatus({ state: "ok", detail: "Voice exists on the ElevenLabs account." });
+      } else {
+        setVoiceStatus({
+          state: "error",
+          detail: payload.detail ?? payload.error ?? "Voice validation failed.",
+        });
+      }
+    } catch {
+      setVoiceStatus({ state: "error", detail: "Could not reach the validation endpoint." });
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -238,6 +292,10 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       description: form.description,
       instructions: form.instructions,
       status: form.status,
+      lifecycle_status: form.lifecycle,
+      category_id: form.runtime.category_id ? form.runtime.category_id : null,
+      voice_id: form.voiceId.trim() || null,
+      voice_name: form.voiceName.trim() || null,
       configuration: {
         ...(agent?.configuration ?? {}),
         ...{
@@ -483,31 +541,129 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={form.status === "active"}
-                        onClick={() =>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="lifecycle">Lifecycle Status</Label>
+                      <NativeSelect
+                        id="lifecycle"
+                        name="lifecycle"
+                        value={form.lifecycle}
+                        onChange={(e) =>
                           setForm((cur) => ({
                             ...cur,
-                            status:
-                              cur.status === "active" ? "inactive" : "active",
+                            lifecycle: e.target.value as FormValue["lifecycle"],
                           }))
                         }
-                        className="inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-input bg-muted px-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[checked=true]:bg-primary"
-                        data-checked={form.status === "active"}
                       >
-                        <span
-                          className="size-5 rounded-full bg-background shadow transition-transform data-[checked=true]:translate-x-5"
+                        <option value="draft">Draft</option>
+                        <option value="unpublished">Unpublished</option>
+                        <option value="published">Published</option>
+                      </NativeSelect>
+                      <p className="text-xs text-muted-foreground">
+                        Published agents are eligible for production routing.
+                        Draft and unpublished agents can be tested from the
+                        Admin.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Operational Status</Label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={form.status === "active"}
+                          onClick={() =>
+                            setForm((cur) => ({
+                              ...cur,
+                              status:
+                                cur.status === "active" ? "inactive" : "active",
+                            }))
+                          }
+                          className="inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-input bg-muted px-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[checked=true]:bg-primary"
                           data-checked={form.status === "active"}
-                        />
-                      </button>
-                      <span className="text-sm font-medium capitalize">
-                        {form.status}
-                      </span>
+                        >
+                          <span
+                            className="size-5 rounded-full bg-background shadow transition-transform data-[checked=true]:translate-x-5"
+                            data-checked={form.status === "active"}
+                          />
+                        </button>
+                        <span className="text-sm font-medium capitalize">
+                          {form.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Inactive agents do not route production traffic even
+                        when published.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Mic className="size-4 text-muted-foreground" />
+                        <Label htmlFor="voice_id">Voice ID</Label>
+                      </div>
+                      <Input
+                        id="voice_id"
+                        name="voice_id"
+                        value={form.voiceId}
+                        onChange={(e) => {
+                          setForm((cur) => ({ ...cur, voiceId: e.target.value }));
+                          setVoiceStatus({ state: "idle" });
+                        }}
+                        placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                        autoComplete="off"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        ElevenLabs voice id. Validated against the account key
+                        configured in Settings.
+                      </p>
+                      {voiceStatus.state === "ok" && (
+                        <p className="flex items-center gap-1.5 text-sm text-emerald-600">
+                          <CheckCircle2 className="size-4" />
+                          {voiceStatus.detail}
+                        </p>
+                      )}
+                      {voiceStatus.state === "error" && (
+                        <p className="flex items-center gap-1.5 text-sm text-destructive">
+                          <XCircle className="size-4" />
+                          {voiceStatus.detail}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="voice_name">Voice Name</Label>
+                      <Input
+                        id="voice_name"
+                        name="voice_name"
+                        value={form.voiceName}
+                        onChange={(e) =>
+                          setForm((cur) => ({ ...cur, voiceName: e.target.value }))
+                        }
+                        placeholder="Optional display name"
+                      />
+                      <div className="pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleValidateVoice()}
+                          disabled={
+                            voiceStatus.state === "checking" ||
+                            !form.voiceId.trim()
+                          }
+                        >
+                          {voiceStatus.state === "checking" ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="size-4" />
+                          )}
+                          Validate Voice
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
@@ -924,7 +1080,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Status
                           </p>
-                          <div className="mt-1">
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <AIStatusBadge status={form.lifecycle} />
                             <AIStatusBadge status={form.status} />
                           </div>
                         </div>

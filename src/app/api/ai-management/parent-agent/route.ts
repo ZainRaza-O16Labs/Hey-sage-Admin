@@ -17,7 +17,7 @@ export async function PUT(request: Request) {
   if (auth.error) return auth.error;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const name = typeof body?.name === "string" ? body.name.trim() : "";
-  if (!name) return jsonError("Parent Agent name is required.", 422);
+  if (!name) return jsonError("AI Router name is required.", 422);
   try {
     const parentAgent = await updateParentAgentConfig({
       name,

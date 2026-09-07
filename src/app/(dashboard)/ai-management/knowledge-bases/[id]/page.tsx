@@ -7,25 +7,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
+import { AiKnowledgeBaseDocumentsPanel } from "@/components/ai-management/ai-knowledge-base-documents-panel";
+import {
+  getKnowledgeBase,
+  getKnowledgeBaseStats,
+} from "@/lib/ai-management/store";
+import { listKnowledgeBaseDocuments } from "@/lib/ai-management/knowledge-base-documents";
+import { isUuid } from "@/lib/agents/schema";
 
 type RouteParams = Promise<{ id: string }>;
 
 export default async function KnowledgeBaseDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
+  if (!isUuid(id)) notFound();
 
-  let kb = null;
+  let kb;
   try {
-    const response = await fetch(`${process.env.SERVER_URL || "http://localhost:3002"}/api/ai-management/knowledge-bases/${id}`);
-    if (response.ok) {
-      const data = (await response.json()) as { knowledgeBase: { id: string; name: string; description: string; status: string; created_at: string; updated_at: string } };
-      kb = data.knowledgeBase;
-    }
+    kb = await getKnowledgeBase(id);
   } catch {
-    // not available
+    notFound();
   }
 
-  if (!kb) notFound();
-
+  const [stats, documents] = await Promise.all([
+    getKnowledgeBaseStats(id),
+    listKnowledgeBaseDocuments(id),
+  ]);
   const editHref = "/ai-management/knowledge-bases/" + kb.id + "/edit";
 
   return (
@@ -83,15 +89,19 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between border-b pb-3">
               <span className="text-sm">Documents</span>
-              <Badge variant="secondary">0</Badge>
+              <Badge variant={stats.documentCount > 0 ? "default" : "secondary"}>{stats.documentCount}</Badge>
+            </div>
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-sm">Ready documents</span>
+              <Badge variant={stats.readyDocumentCount > 0 ? "default" : "secondary"}>{stats.readyDocumentCount}</Badge>
             </div>
             <div className="flex items-center justify-between border-b pb-3">
               <span className="text-sm">Assigned Agents</span>
-              <Badge variant="secondary">0</Badge>
+              <Badge variant={stats.agentCount > 0 ? "default" : "secondary"}>{stats.agentCount}</Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm">Chunks</span>
-              <Badge variant="secondary">0</Badge>
+              <Badge variant={stats.chunkCount > 0 ? "default" : "secondary"}>{stats.chunkCount}</Badge>
             </div>
           </CardContent>
         </Card>
@@ -110,12 +120,10 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm font-medium">Document management not yet available</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Document upload and management will be available once the backend schema supports knowledge bases.
-            </p>
-          </div>
+          <AiKnowledgeBaseDocumentsPanel
+            knowledgeBaseId={id}
+            initialDocuments={documents}
+          />
         </CardContent>
       </Card>
     </div>

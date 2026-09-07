@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
-type StatusVariant = "active" | "inactive" | "processing" | "indexed" | "failed" | "ready" | "pending" | "error";
+type StatusVariant = "active" | "inactive" | "processing" | "indexed" | "failed" | "ready" | "pending" | "error" | "draft" | "unpublished" | "published";
 
 const statusConfig: Record<StatusVariant, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   active: { label: "Active", variant: "default" },
@@ -11,6 +11,9 @@ const statusConfig: Record<StatusVariant, { label: string; variant: "default" | 
   ready: { label: "Ready", variant: "default" },
   pending: { label: "Pending", variant: "secondary" },
   error: { label: "Error", variant: "destructive" },
+  draft: { label: "Draft", variant: "outline" },
+  unpublished: { label: "Unpublished", variant: "secondary" },
+  published: { label: "Published", variant: "default" },
 };
 
 export function AIStatusBadge({ status }: { status: string }) {

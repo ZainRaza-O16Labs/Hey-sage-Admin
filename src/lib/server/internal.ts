@@ -61,3 +61,65 @@ export function enqueueDocumentProcess(agentId: string, documentId: string) {
     `/internal/agents/${agentId}/documents/${documentId}/process`,
   );
 }
+
+export function enqueueKnowledgeBaseDocumentProcess(
+  knowledgeBaseId: string,
+  documentId: string,
+) {
+  return enqueueBackendJob(
+    `/internal/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/process`,
+  );
+}
+
+/**
+ * Run a live chat against an agent in any lifecycle state (Draft/Unpublished/
+ * Published) through the real runtime — no conversation persistence.
+ */
+export async function testAgentChat(
+  agentId: string,
+  message: string,
+): Promise<string> {
+  const secret = getInternalSecret();
+  if (!secret) {
+    throw new AgentsStoreError(
+      "INTERNAL_API_SECRET is not configured.",
+      503,
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${getMastraUrl()}/internal/agents/${agentId}/chat/test`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+        signal: AbortSignal.timeout(120_000),
+      },
+    );
+  } catch {
+    throw new AgentsStoreError(
+      "Mastra is not running. Start it with npm run dev:all.",
+      503,
+    );
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    reply?: string;
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new AgentsStoreError(
+      payload.error ?? "Agent test chat failed.",
+      response.status,
+    );
+  }
+  if (typeof payload.reply !== "string" || !payload.reply) {
+    throw new AgentsStoreError("Agent returned an empty response.", 502);
+  }
+  return payload.reply;
+}

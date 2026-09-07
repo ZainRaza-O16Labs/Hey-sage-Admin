@@ -44,7 +44,7 @@ export default function PlaygroundPage() {
 
     setDebugSteps([
       { label: "Prompt", detail: userMessage },
-      { label: "Parent Agent", detail: "Routing request..." },
+      { label: "AI Router", detail: "Routing request..." },
     ]);
 
     try {
@@ -192,7 +192,7 @@ export default function PlaygroundPage() {
               </div>
               <div className="mt-4 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Execution flow</p>
-                {["Prompt", "Parent Agent", "Category", "Agent", "Tool", "Tool Result", "RAG", "Retrieved Documents", "Final Response"].map((step) => (
+                {["Prompt", "AI Router", "Category", "Agent", "Tool", "Tool Result", "RAG", "Retrieved Documents", "Final Response"].map((step) => (
                   <div key={step} className="flex items-center gap-2 text-xs text-muted-foreground">
                     <div className="size-1.5 rounded-full bg-muted-foreground/30" />
                     {step}

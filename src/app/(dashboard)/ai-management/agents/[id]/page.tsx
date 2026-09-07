@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bot, Edit, Puzzle, BookOpen, FileText } from "lucide-react";
+import { Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,10 @@ import { AiAgentDeleteButton } from "@/components/ai-management/ai-agent-delete-
 import { getAgent } from "@/lib/agents/store";
 import { listDocuments } from "@/lib/agents/documents";
 import { isUuid } from "@/lib/agents/schema";
+import {
+  listAgentKnowledgeBaseAssignments,
+  listToolsByAgent,
+} from "@/lib/ai-management/store";
 
 type RouteParams = Promise<{ id: string }>;
 
@@ -26,8 +30,19 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
   }
   if (!agent) notFound();
 
-  const documents = await listDocuments(id);
+  const [documents, tools, knowledgeBaseIds] = await Promise.all([
+    listDocuments(id),
+    listToolsByAgent(id),
+    listAgentKnowledgeBaseAssignments(id),
+  ]);
   const editHref = `/ai-management/agents/${agent.id}/edit`;
+  const previewHref = `/ai-management/agents/${agent.id}/preview`;
+  const config = agent.configuration ?? {};
+  const configKnowledgeBaseIds = Array.isArray(config.knowledge_base_ids)
+    ? config.knowledge_base_ids.filter((kbId): kbId is string => typeof kbId === "string")
+    : [];
+  const knowledgeBaseCount =
+    knowledgeBaseIds.length > 0 ? knowledgeBaseIds.length : configKnowledgeBaseIds.length;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -36,7 +51,11 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
           title={agent.name}
           description={agent.description || "No description provided."}
           action={
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>
+                <Send className="size-4" />
+                Test Agent
+              </Button>
               <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
                 <Edit className="size-4" />
                 Edit Agent
@@ -46,6 +65,24 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
           }
         />
       </div>
+
+      {/* Lifecycle notice */}
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 py-4">
+          <div className="flex items-center gap-3">
+            <AIStatusBadge status={agent.lifecycle_status} />
+            <span className="text-sm text-muted-foreground">
+              {agent.lifecycle_status === "published"
+                ? "This agent can be reached by users through the AI Router."
+                : "Only admin testing can reach this agent until it is published."}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Operational</span>
+            <AIStatusBadge status={agent.status} />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <Card>
@@ -61,9 +98,15 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Status</span>
-              <AIStatusBadge status={agent.status} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-sm font-medium">Lifecycle</p>
+                <div className="mt-1"><AIStatusBadge status={agent.lifecycle_status} /></div>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Operational status</p>
+                <div className="mt-1"><AIStatusBadge status={agent.status} /></div>
+              </div>
             </div>
             <Separator />
             <div>
@@ -99,15 +142,15 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between border-b pb-3">
               <span className="text-sm">Tools assigned</span>
-              <Badge variant="secondary">0</Badge>
+              <Badge variant={tools.length > 0 ? "default" : "secondary"}>{tools.length}</Badge>
             </div>
             <div className="flex items-center justify-between border-b pb-3">
-              <span className="text-sm">Knowledge bases</span>
-              <Badge variant="secondary">0</Badge>
-            </div>
-            <div className="flex items-center justify-between">
               <span className="text-sm">Documents</span>
               <Badge variant={documents.length > 0 ? "default" : "secondary"}>{documents.length}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Knowledge bases</span>
+              <Badge variant={knowledgeBaseCount > 0 ? "default" : "secondary"}>{knowledgeBaseCount}</Badge>
             </div>
           </CardContent>
         </Card>

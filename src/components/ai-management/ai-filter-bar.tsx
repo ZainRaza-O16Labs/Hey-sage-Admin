@@ -16,6 +16,9 @@ export function AIFilterBar({
     { value: "active", label: "Active" },
     { value: "inactive", label: "Inactive" },
   ],
+  lifecycleFilter,
+  onLifecycleFilterChange,
+  lifecycleOptions,
   searchPlaceholder = "Search...",
   searchLabel = "Search",
 }: {
@@ -24,6 +27,9 @@ export function AIFilterBar({
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
   statusOptions?: FilterOption[];
+  lifecycleFilter?: string;
+  onLifecycleFilterChange?: (value: string) => void;
+  lifecycleOptions?: FilterOption[];
   searchPlaceholder?: string;
   searchLabel?: string;
 }) {
@@ -51,6 +57,22 @@ export function AIFilterBar({
           </option>
         ))}
       </NativeSelect>
+      {lifecycleFilter !== undefined &&
+      onLifecycleFilterChange &&
+      lifecycleOptions ? (
+        <NativeSelect
+          value={lifecycleFilter}
+          onChange={(e) => onLifecycleFilterChange(e.target.value)}
+          aria-label="Filter by lifecycle"
+          className="sm:w-36"
+        >
+          {lifecycleOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </NativeSelect>
+      ) : null}
     </div>
   );
 }

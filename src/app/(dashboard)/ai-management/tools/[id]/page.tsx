@@ -7,24 +7,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
+import { getTool, listAgentsByTool } from "@/lib/ai-management/store";
 
 type RouteParams = Promise<{ id: string }>;
 
 export default async function ToolDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
 
-  let tool = null;
-  try {
-    const response = await fetch(`${process.env.SERVER_URL || "http://localhost:3002"}/api/ai-management/tools/${id}`);
-    if (response.ok) {
-      const data = (await response.json()) as { tool: { id: string; name: string; key: string; description: string; status: string; created_at: string; updated_at: string } };
-      tool = data.tool;
-    }
-  } catch {
-    // Tool not available
-  }
-
+  const tool = await getTool(id);
   if (!tool) notFound();
+
+  let agents: Array<{ id: string; name: string }> = [];
+  try {
+    agents = await listAgentsByTool(id);
+  } catch {
+    agents = [];
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -92,15 +90,33 @@ export default async function ToolDetailPage({ params }: { params: RouteParams }
           <CardDescription>Agents that have access to this tool.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Puzzle className="size-5" />
+          {agents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Puzzle className="size-5" />
+              </div>
+              <p className="text-sm font-medium">No agents assigned</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Assign this tool to an agent from the agent&apos;s General tab.
+              </p>
             </div>
-            <p className="text-sm font-medium">Assignment not yet available</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Tool-to-agent assignment will be available once the backend schema supports it.
-            </p>
-          </div>
+          ) : (
+            <ul className="divide-y">
+              {agents.map((agent) => (
+                <li key={agent.id}>
+                  <Link
+                    href={`/ai-management/agents/${agent.id}`}
+                    className="flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-muted"
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <Puzzle className="size-4" />
+                    </div>
+                    <span className="text-sm font-medium truncate">{agent.name}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

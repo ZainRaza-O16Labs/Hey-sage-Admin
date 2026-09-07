@@ -60,10 +60,10 @@ export default function ConversationsPage() {
         <Card>
           <CardContent className="py-8">
             <div className="flex flex-col items-center justify-center text-center">
-              <p className="text-sm font-medium">Conversations not yet available</p>
+              <p className="text-sm font-medium">No conversations yet</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Conversation history will appear here once the backend conversation tracking is enabled.
-                Use the Playground to test agent interactions.
+                Conversation and voice history will appear here once users start chatting
+                with agents through the app.
               </p>
               <Button className="mt-4" variant="outline" nativeButton={false} render={<Link href="/ai-management/playground" />}>
                 Open Playground

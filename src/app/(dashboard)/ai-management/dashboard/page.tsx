@@ -37,7 +37,7 @@ export default async function AiDashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <AiPageHeader
           title="Dashboard"
-          description="Manage your Parent Agent, categories, specialized agents, tools, knowledge bases, and conversations."
+          description="Manage your AI Router, categories, specialized agents, tools, knowledge bases, and conversations."
         />
         <AIPageActions
           actions={[

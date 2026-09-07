@@ -15,6 +15,7 @@ const emptyForm: AgentInput = {
   description: "",
   instructions: "",
   status: "active",
+  lifecycle_status: "draft",
 };
 
 type AgentFormProps = {
@@ -31,6 +32,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           description: agent.description,
           instructions: agent.instructions,
           status: agent.status,
+          lifecycle_status: agent.lifecycle_status,
         }
       : emptyForm,
   );

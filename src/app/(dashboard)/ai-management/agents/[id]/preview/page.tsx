@@ -7,8 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
+import { AgentPreviewChat } from "@/components/ai-management/agent-preview-chat";
 import { getAgent } from "@/lib/agents/store";
+import { listDocuments } from "@/lib/agents/documents";
 import { isUuid } from "@/lib/agents/schema";
+import {
+  listAgentKnowledgeBaseAssignments,
+  listToolsByAgent,
+} from "@/lib/ai-management/store";
 
 type RouteParams = Promise<{ id: string }>;
 
@@ -23,6 +29,18 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
     notFound();
   }
   if (!agent) notFound();
+
+  const [tools, knowledgeBaseIds, documents] = await Promise.all([
+    listToolsByAgent(id),
+    listAgentKnowledgeBaseAssignments(id),
+    listDocuments(id),
+  ]);
+  const config = agent.configuration ?? {};
+  const configKnowledgeBaseIds = Array.isArray(config.knowledge_base_ids)
+    ? config.knowledge_base_ids.filter((kbId): kbId is string => typeof kbId === "string")
+    : [];
+  const knowledgeBaseCount =
+    knowledgeBaseIds.length > 0 ? knowledgeBaseIds.length : configKnowledgeBaseIds.length;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -50,13 +68,17 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <p className="text-sm font-medium">Name</p>
               <p className="mt-1 text-sm text-muted-foreground">{agent.name}</p>
             </div>
             <div>
-              <p className="text-sm font-medium">Status</p>
+              <p className="text-sm font-medium">Lifecycle</p>
+              <div className="mt-1"><AIStatusBadge status={agent.lifecycle_status} /></div>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Operational status</p>
               <div className="mt-1"><AIStatusBadge status={agent.status} /></div>
             </div>
           </div>
@@ -79,13 +101,13 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
           <Separator />
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="text-center">
-              <Badge variant="secondary">0 Tools</Badge>
+              <Badge variant={tools.length > 0 ? "default" : "secondary"}>{tools.length} Tools</Badge>
             </div>
             <div className="text-center">
-              <Badge variant="secondary">0 Knowledge Bases</Badge>
+              <Badge variant={knowledgeBaseCount > 0 ? "default" : "secondary"}>{knowledgeBaseCount} Knowledge Bases</Badge>
             </div>
             <div className="text-center">
-              <Badge variant="secondary">0 Documents</Badge>
+              <Badge variant={documents.length > 0 ? "default" : "secondary"}>{documents.length} Documents</Badge>
             </div>
           </div>
         </CardContent>
@@ -94,19 +116,12 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
       <Card>
         <CardHeader>
           <CardTitle>Chat Preview</CardTitle>
-          <CardDescription>Test this agent with a sample interaction.</CardDescription>
+          <CardDescription>
+            Test this agent through the real runtime. Draft and unpublished agents are testable here.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm font-medium">Preview unavailable</p>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Live chat preview requires the backend chat API to be available.
-              Use the Playground to test agent interactions.
-            </p>
-            <Button className="mt-4" variant="outline" nativeButton={false} render={<Link href="/ai-management/playground" />}>
-              Open Playground
-            </Button>
-          </div>
+          <AgentPreviewChat agentId={id} />
         </CardContent>
       </Card>
     </div>
