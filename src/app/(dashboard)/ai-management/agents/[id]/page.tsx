@@ -1,11 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { useRouter } from "next/navigation";
 import { Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
@@ -33,17 +30,13 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
   }
   if (!agent) notFound();
 
-  const router = useRouter();
-  const editHref = `/ai-management/agents/${agent.id}/edit`;
-  const previewHref = `/ai-management/agents/${agent.id}/preview`;
-  const listHref = `/ai-management/agents`;
-
   const [documents, tools, knowledgeBaseIds] = await Promise.all([
     listDocuments(id),
     listToolsByAgent(id),
     listAgentKnowledgeBaseAssignments(id),
   ]);
-
+  const editHref = `/ai-management/agents/${agent.id}/edit`;
+  const previewHref = `/ai-management/agents/${agent.id}/preview`;
   const config = agent.configuration ?? {};
   const configKnowledgeBaseIds = Array.isArray(config.knowledge_base_ids)
     ? config.knowledge_base_ids.filter((kbId): kbId is string => typeof kbId === "string")
@@ -57,24 +50,6 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
         <AiPageHeader
           title={agent.name}
           description={agent.description || "No description provided."}
-          backButton={
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => router.back()}
-              aria-label="Back"
-              className="rounded-md p-1.5 hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="size-4 shrink-0"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M15.293 7.293a1 1 0 01-1.414 0L10 10.586 5.293 5.293a1 1 0 01-1.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" />
-              </svg>
-            </Button>
-          }
           action={
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>

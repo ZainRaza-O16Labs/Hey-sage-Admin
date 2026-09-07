@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { useRouter } from "next/navigation";
-import { Database, Edit } from "lucide-react";
+import { Database, Edit, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,49 +27,27 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
   } catch {
     notFound();
   }
-  if (!kb) notFound();
-
-  const router = useRouter();
-  const listHref = "/ai-management/knowledge-bases";
-  const editHref = "/ai-management/knowledge-bases/" + kb.id + "/edit";
 
   const [stats, documents] = await Promise.all([
     getKnowledgeBaseStats(id),
     listKnowledgeBaseDocuments(id),
   ]);
+  const editHref = "/ai-management/knowledge-bases/" + kb.id + "/edit";
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="mb-6">
-        <div className="flex items-start gap-4">
-          <AiPageHeader
-            title={kb.name}
-            description={kb.description || "Knowledge base for document management."}
-            action={
-              <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
-                <Edit className="size-4" />
-                Edit
-              </Button>
-            }
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => router.back()}
-            aria-label="Back"
-            className="rounded-md p-1.5 hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="size-4 shrink-0"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path d="M15.293 7.293a1 1 0 01-1.414 0L10 10.586 5.293 5.293a1 1 0 01-1.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" />
-            </svg>
-          </Button>
-        </div>
-      </header>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <AiPageHeader
+          title={kb.name}
+          description={kb.description || "Knowledge base for document management."}
+          action={
+            <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
+              <Edit className="size-4" />
+              Edit
+            </Button>
+          }
+        />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <Card>
@@ -140,15 +117,15 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
               <CardTitle>Documents</CardTitle>
               <CardDescription>Files uploaded to this knowledge base.</CardDescription>
             </div>
-          </CardHeader>
-          <CardContent>
-            <AiKnowledgeBaseDocumentsPanel
-              knowledgeBaseId={id}
-              initialDocuments={documents}
-            />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <AiKnowledgeBaseDocumentsPanel
+            knowledgeBaseId={id}
+            initialDocuments={documents}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

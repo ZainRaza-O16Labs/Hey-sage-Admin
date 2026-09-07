@@ -3,132 +3,126 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
+import { AIEmptyState } from "@/components/ai-management/ai-empty-state";
+import { AISkeleton } from "@/components/ai-management/ai-skeleton";
+import { AIFilterBar } from "@/components/ai-management/ai-filter-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useRouter } from "next/navigation";
-import { fetchConversations } from "@/lib/ai-management/conversations-store";
-import type { AiConversationRecord } from "@/lib/ai-management/conversations-store";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type Conversation = {
+  id: string;
+  agent_id: string;
+  agent_name?: string;
+  category_name?: string;
+  message_count: number;
+  created_at: string;
+  updated_at: string;
+};
 
 export default function ConversationsPage() {
-  const router = useRouter();
-  const [conversations, setConversations] = useState<AiConversationRecord[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<AiConversationRecord | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/ai-management/conversations");
-      if (!response.ok) throw new Error("Failed to load conversations");
-      const data = (await response.json()) as { conversations: AiConversationRecord[] };
-      setConversations(data.conversations ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load conversations.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    fetch("/api/ai-management/conversations")
+      .then((r) => {
+        if (r.ok) return r.json();
+        return { conversations: [] };
+      })
+      .then((data: { conversations?: Conversation[] }) => {
+        setConversations(data.conversations ?? []);
+      })
+      .catch(() => {
+        setConversations([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = conversations.filter((conv) => {
-    const search = `${conv.agent_name ?? ""} ${conv.category_name ?? ""}`.toLowerCase().includes(
-      query.toLowerCase(),
-    );
-    return search && (query === "" || true);
+    const search = `${conv.id} ${conv.agent_name ?? ""} ${conv.category_name ?? ""}`.toLowerCase();
+    return search.includes(query.toLowerCase());
   });
-
-  async function handleDelete(orgId: string, id: string) {
-    setDeleteTarget({ orgId, id });
-    setError(null);
-    try {
-      await fetch(`/api/ai-management/conversations/${id}`, { method: "DELETE" });
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-      setDeleteTarget(null);
-    } catch {
-      setError("Delete failed.");
-      setDeleteTarget(null);
-    }
-  }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <AiPageHeader
         title="Conversations"
-        description="Agent conversation history and analytics."
+        description="View and manage chat and voice conversations across agents."
       />
 
       {loading ? (
-        <div className="skeleton h-64 rounded-blg"/>
-      ) : error ? (
-        <p className="text-sm text-destructive">{error}</p>
+        <AISkeleton />
       ) : conversations.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8">
-          <p className="text-sm text-muted-foreground">
-            No conversations yet. Messages appear as agents interact with users.
-          </p>
-        </div>
+        <Card>
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center justify-center text-center">
+              <p className="text-sm font-medium">No conversations yet</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Conversation and voice history will appear here once users start chatting
+                with agents through the app.
+              </p>
+              <Button className="mt-4" variant="outline" nativeButton={false} render={<Link href="/ai-management/playground" />}>
+                Open Playground
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <AIFilterBar
             query={query}
             onQueryChange={setQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statusOptions={[{ value: "all", label: "All conversations" }]}
             searchPlaceholder="Search conversations..."
             searchLabel="Search conversations"
           />
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Conversation</TableHead>
-                <TableHead>Agent</TableHead>
-                <TableHead className="w-40">Messages</TableHead>
-                <TableHead className="w-[1%] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((conv) => (
-                <TableRow key={conv.id}>
-                  <TableCell>
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <Link
-                        href={`/ai-management/conversations/${conv.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {conv.agent_name ?? "Unknown agent"}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {conv.category_name || ""}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{conv.message_count ?? 0}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      nativeButton={false}
-                      onClick={() => void handleDelete(conv.organization_id, conv.id)}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </Card>
+          {filtered.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm font-medium">No conversations found</p>
+              <p className="mt-1 text-sm text-muted-foreground">Try a different search.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-32">ID</TableHead>
+                    <TableHead className="w-40">Agent</TableHead>
+                    <TableHead className="w-32">Category</TableHead>
+                    <TableHead className="w-24">Messages</TableHead>
+                    <TableHead className="w-40">Date</TableHead>
+                    <TableHead className="w-[1%] text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((conv) => (
+                    <TableRow key={conv.id}>
+                      <TableCell className="font-mono text-xs">{conv.id.slice(0, 8)}...</TableCell>
+                      <TableCell>{conv.agent_name ?? "—"}</TableCell>
+                      <TableCell>{conv.category_name ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{conv.message_count}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(conv.created_at).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/ai-management/conversations/${conv.id}`} />}>
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </Card>
       )}
     </div>
