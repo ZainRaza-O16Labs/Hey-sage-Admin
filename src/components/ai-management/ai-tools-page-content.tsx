@@ -13,14 +13,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useRouter } from "next/navigation";
+import { fetchTools, syncAgentAssignments } from "@/lib/ai-management/store";
+import { fetchAgents } from "@/lib/agents/store";
 import type { AiTool } from "@/lib/ai-management/tools";
+import type { Agent } from "@/lib/agents/schema";
 
 export function AiToolsPageContent() {
+  const router = useRouter();
   const [tools, setTools] = useState<AiTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [assignToolToolId, setAssignToolToolId] = useState<string | null>(null);
+  const [assignToolAgentId, setAssignToolAgentId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -42,10 +50,63 @@ export function AiToolsPageContent() {
 
   useEffect(() => { void load(); }, []);
 
-  const filtered = tools.filter((tool) => {
-    const matchesQuery = `${tool.name} ${tool.key} ${tool.description}`.toLowerCase().includes(query.toLowerCase());
-    return matchesQuery && (statusFilter === "all" || tool.status === statusFilter);
-  });
+  // Load agents for assignment UI
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [fetchingAgents, setFetchingAgents] = useState(false);
+
+  useEffect(() => {
+    async function fetchAgents() {
+      setFetchingAgents(true);
+      try {
+        const response = await fetch("/api/agents");
+        if (!response.ok) return;
+        const data = (await response.json()) as { agents?: Agent[] };
+        setAgents(data.agents ?? []);
+      } catch {
+        // ignore
+      } finally {
+        setFetchingAgents(false);
+      }
+    }
+    fetchAgents();
+  }, []);
+
+  // Compute assigned agent count for each tool
+  const toolsWithCount = useMemo(() => {
+    return tools.map((tool) => {
+      const configured = tool.configuration;
+      let count = 0;
+      let names: string[] = [];
+      if (configured && configured.assignedAgentIds && Array.isArray(configured.assignedAgentIds)) {
+        count = configured.assignedAgentIds.length;
+        names = configured.assignedAgentIds
+          .map((id) => agents.find((a) => a.id === id)?.name ?? "Unknown")
+          .filter((n): n is string => Boolean(n));
+      }
+      return { tool, count, names };
+    });
+  }, [tools, agents]);
+
+  const filtered = toolsWithCount
+    .filter((t) => {
+      const matchesQuery = `${t.tool.name} ${t.tool.key} ${t.tool.description}`.toLowerCase().includes(query.toLowerCase());
+      return matchesQuery && (statusFilter === "all" || t.tool.status === statusFilter);
+    })
+    .map((t) => ({ ...t, agentNames: t.names.length > 0 ? t.names : ["—"] }));
+
+  async function handleAssignTool(toolId: string, agentId: string) {
+    setAssignmentsLoading(true);
+    try {
+      await syncAgentAssignments(agentId, {
+        toolIds: [toolId],
+        knowledgeBaseIds: [],
+      });
+      await load();
+      setAssignmentsLoading(false);
+    } catch {
+      setAssignmentsLoading(false);
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -96,39 +157,100 @@ export function AiToolsPageContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((tool) => (
-                    <TableRow key={tool.id}>
-                      <TableCell className="min-w-0 max-w-xl whitespace-normal">
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <Link href={`/ai-management/tools/${tool.id}`} className="w-fit font-medium text-foreground hover:underline">
-                            {tool.name}
-                          </Link>
-                          <p className="line-clamp-2 text-sm text-muted-foreground" title={tool.description || undefined}>
-                            {tool.description || "No description"}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{tool.key}</code>
-                      </TableCell>
-                      <TableCell>
-                        <AIStatusBadge status={tool.status} />
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">0</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/ai-management/tools/${tool.id}`} />}>
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map((t) => {
+                    const { tool, count, names, agentNames } = t;
+
+                    return (
+                      <TableRow key={tool.id}>
+                        <TableCell className="min-w-0 max-w-xl whitespace-normal">
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <Link href={`/ai-management/tools/${tool.id}`} className="w-fit font-medium text-foreground hover:underline">
+                              {tool.name}
+                            </Link>
+                            <p className="line-clamp-2 text-sm text-muted-foreground" title={tool.description || undefined}>
+                              {tool.description || "No description"}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{tool.key}</code>
+                        </TableCell>
+                        <TableCell>
+                          <AIStatusBadge status={tool.status} />
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm font-medium">{count}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {agentNames.length > 0 ? agentNames.join(", ") : "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {count > 0 ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              nativeButton={false}
+                              onClick={() => load()}
+                            >
+                              Remove
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              nativeButton={false}
+                              onClick={() => setAssignToolToolId(tool.id)}
+                            >
+                              Assign
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
           )}
         </Card>
+      )]
+
+      {assignToolToolId && (
+        <div className="mt-4">
+          <p>
+            Assign tool to which agent?
+          </p>
+          <select
+            value={assignToolAgentId ?? ""}
+            onChange={(e) => setAssignToolAgentId(e.target.value)}
+            className="border rounded p-2 mb-2"
+          >
+            <option value="">— Select agent —</option>
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            onClick={() => {
+              if (assignToolAgentId) {
+                handleAssignTool(assignToolToolId, assignToolAgentId);
+                setAssignToolToolId(null);
+                setAssignToolAgentId(null);
+              }
+            }}
+            disabled={fetchingAgents}
+          >
+            {fetchingAgents ? "Assigning…" : "Assign Agent"}
+          </Button>
+          <Button variant="outline" onClick={() => {
+            setAssignToolToolId(null);
+            setAssignToolAgentId(null);
+          }}>
+            Cancel
+          </Button>
+        </div>
       )}
     </div>
   );

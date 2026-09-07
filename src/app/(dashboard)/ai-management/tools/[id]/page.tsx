@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
-import { Puzzle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { Puzzle, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +12,9 @@ import { getTool, listAgentsByTool } from "@/lib/ai-management/store";
 
 type RouteParams = Promise<{ id: string }>;
 
-export default async function ToolDetailPage({ params }: { params: RouteParams }) {
+export default function ToolDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
+  const router = useRouter();
 
   const tool = await getTool(id);
   if (!tool) notFound();
@@ -29,6 +31,24 @@ export default async function ToolDetailPage({ params }: { params: RouteParams }
       <AiPageHeader
         title={tool.name}
         description={tool.description || "Tool configuration and assignment details."}
+        backButton={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="rounded-md p-1.5 hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="size-4 shrink-0"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path d="M15.293 7.293a1 1 0 01-1.414 0L10 10.586 5.293 5.293a1 1 0 01-1.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" />
+            </svg>
+          </Button>
+        }
         action={
           <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/tools" />}>
             <ArrowLeft className="size-4" />
@@ -97,7 +117,7 @@ export default async function ToolDetailPage({ params }: { params: RouteParams }
               </div>
               <p className="text-sm font-medium">No agents assigned</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Assign this tool to an agent from the agent&apos;s General tab.
+                Assign this tool to an agent from the agent's General tab.
               </p>
             </div>
           ) : (

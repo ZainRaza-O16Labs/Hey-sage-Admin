@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Bot, Edit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
@@ -12,7 +13,6 @@ type RouteParams = Promise<{ id: string }>;
 
 export default async function CategoryDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
-
   let category;
   try {
     category = await getCategory(id);
@@ -24,7 +24,9 @@ export default async function CategoryDetailPage({ params }: { params: RoutePara
   }
   if (!category) notFound();
 
+  const router = useRouter();
   const editHref = `/ai-management/categories/${category.id}/edit`;
+  const listHref = "/ai-management/categories";
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -33,9 +35,21 @@ export default async function CategoryDetailPage({ params }: { params: RoutePara
           title={category.name}
           description={category.description || "No description provided."}
           action={
-            <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
-              <Edit className="size-4" />
-              Edit Category
+            <Button
+              variant="outline"
+              nativeButton={false}
+              onClick={() => router.back()}
+              title="Back"
+            >
+              <svg
+                className="size-4 shrink-0 mr-2 transition-transform hover:rotate-1"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Back to Categories
             </Button>
           }
         />
