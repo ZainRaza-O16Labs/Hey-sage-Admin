@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft,
   Check,
   Database,
   Loader2,
@@ -12,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AISkeleton } from "@/components/ai-management/ai-skeleton";
@@ -175,19 +174,13 @@ export default function AgentKnowledgePage({
   if (loading) {
     return (
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <BackNav
+          href={agentId ? `/ai-management/agents/${agentId}` : "/ai-management/agents"}
+          label="Agent"
+        />
         <AiPageHeader
           title="Knowledge"
           description="Loading..."
-          action={
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<Link href={agentId ? `/ai-management/agents/${agentId}` : "/ai-management/agents"} />}
-            >
-              <ArrowLeft className="size-4" />
-              Back to Agent
-            </Button>
-          }
         />
         <AISkeleton />
       </div>
@@ -197,19 +190,10 @@ export default function AgentKnowledgePage({
   if (error || !agent) {
     return (
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <BackNav href="/ai-management/agents" label="Agents" />
         <AiPageHeader
           title="Knowledge"
           description="Error loading agent."
-          action={
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<Link href="/ai-management/agents" />}
-            >
-              <ArrowLeft className="size-4" />
-              Back to Agents
-            </Button>
-          }
         />
         <AIErrorState
           title="Unable to load agent"
@@ -221,19 +205,10 @@ export default function AgentKnowledgePage({
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <BackNav href={`/ai-management/agents/${agent.id}`} label="Agent" />
       <AiPageHeader
         title={`${agent.name} — Knowledge`}
         description="Assign knowledge bases and configure retrieval-augmented generation settings for this agent."
-        action={
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<Link href={`/ai-management/agents/${agent.id}`} />}
-          >
-            <ArrowLeft className="size-4" />
-            Back to Agent
-          </Button>
-        }
       />
 
       <Card>

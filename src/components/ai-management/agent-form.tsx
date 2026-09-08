@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -20,6 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIEmptyState } from "@/components/ai-management/ai-empty-state";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
@@ -1088,30 +1088,20 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <BackNav
+        href={
+          isEdit && agentId
+            ? `/ai-management/agents/${agentId}`
+            : "/ai-management/agents"
+        }
+        label="Agents"
+      />
       <AiPageHeader
         title={isEdit ? "Edit Agent" : "Create Agent"}
         description={
           isEdit
             ? "Update this agent's category, instructions, tools and knowledge configuration."
             : "Create a permanent AI agent and configure its category, instructions, tools and knowledge."
-        }
-        action={
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={
-              <Link
-                href={
-                  isEdit && agentId
-                    ? `/ai-management/agents/${agentId}`
-                    : "/ai-management/agents"
-                }
-              />
-            }
-          >
-            <ArrowLeft className="size-4" />
-            Back to Agents
-          </Button>
         }
       />
 

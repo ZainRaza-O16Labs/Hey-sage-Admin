@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
+import { Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AiAgentDeleteButton } from "@/components/ai-management/ai-agent-delete-button";
@@ -54,15 +55,12 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
+        <BackNav href="/ai-management/agents" label="Agents" />
         <AiPageHeader
           title={agent.name}
           description={agent.description || "No description provided."}
           action={
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/agents" />}>
-                <ArrowLeft className="size-4" />
-                Back to Agents
-              </Button>
               <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>
                 <Send className="size-4" />
                 Preview Agent

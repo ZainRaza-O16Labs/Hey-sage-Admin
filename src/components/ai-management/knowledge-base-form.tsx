@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AIFormSkeleton } from "@/components/ai-management/ai-skeleton";
@@ -616,27 +616,17 @@ export function KnowledgeBaseForm({
   if (isEdit && !knowledgeBase && !loadError) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
+        <BackNav
+          href={
+            knowledgeBaseId
+              ? `/ai-management/knowledge-bases/${knowledgeBaseId}`
+              : "/ai-management/knowledge-bases"
+          }
+          label="Knowledge Bases"
+        />
         <AiPageHeader
           title="Edit Knowledge Base"
           description="Update this knowledge base and its assigned agents and documents."
-          action={
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={
-                <Link
-                  href={
-                    knowledgeBaseId
-                      ? `/ai-management/knowledge-bases/${knowledgeBaseId}`
-                      : "/ai-management/knowledge-bases"
-                  }
-                />
-              }
-            >
-              <ArrowLeft className="size-4" />
-              Back to Knowledge Bases
-            </Button>
-          }
         />
         <AIFormSkeleton />
       </div>
@@ -646,19 +636,10 @@ export function KnowledgeBaseForm({
   if (isEdit && loadError) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
+        <BackNav href="/ai-management/knowledge-bases" label="Knowledge Bases" />
         <AiPageHeader
           title="Edit Knowledge Base"
           description="Update this knowledge base and its assigned agents and documents."
-          action={
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<Link href="/ai-management/knowledge-bases" />}
-            >
-              <ArrowLeft className="size-4" />
-              Back to Knowledge Bases
-            </Button>
-          }
         />
         <AIErrorState
           title="Unable to load knowledge base"
@@ -674,30 +655,20 @@ export function KnowledgeBaseForm({
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <BackNav
+        href={
+          isEdit && (knowledgeBaseId ?? knowledgeBase?.id)
+            ? `/ai-management/knowledge-bases/${knowledgeBaseId ?? knowledgeBase?.id}`
+            : "/ai-management/knowledge-bases"
+        }
+        label="Knowledge Bases"
+      />
       <AiPageHeader
         title={isEdit ? "Edit Knowledge Base" : "Create Knowledge Base"}
         description={
           isEdit
             ? "Update the knowledge base name, documents, assigned agents and retrieval defaults."
             : "Create a knowledge base and configure its documents, assigned agents and retrieval defaults."
-        }
-        action={
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={
-              <Link
-                href={
-                  isEdit && (knowledgeBaseId ?? knowledgeBase?.id)
-                    ? `/ai-management/knowledge-bases/${knowledgeBaseId ?? knowledgeBase?.id}`
-                    : "/ai-management/knowledge-bases"
-                }
-              />
-            }
-          >
-            <ArrowLeft className="size-4" />
-            Back to Knowledge Bases
-          </Button>
         }
       />
 

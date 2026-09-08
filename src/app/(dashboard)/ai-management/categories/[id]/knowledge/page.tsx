@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Database } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Database } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AiManagementStoreError, getCategory } from "@/lib/ai-management/store";
 
@@ -23,15 +22,10 @@ export default async function CategoryKnowledgePage({ params }: { params: RouteP
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
+        <BackNav href={`/ai-management/categories/${id}`} label="Category" />
         <AiPageHeader
           title={`${category.name} — Knowledge`}
           description="Manage knowledge bases shared across agents in this category."
-          action={
-            <Button variant="outline" nativeButton={false} render={<Link href={`/ai-management/categories/${id}`} />}>
-              <ArrowLeft className="size-4" />
-              Back to Category
-            </Button>
-          }
         />
       </div>
 

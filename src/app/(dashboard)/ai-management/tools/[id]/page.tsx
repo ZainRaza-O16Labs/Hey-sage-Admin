@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { Puzzle, ArrowLeft } from "lucide-react";
+import { Puzzle } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { getTool, listAgentsByTool } from "@/lib/ai-management/store";
@@ -26,15 +26,10 @@ export default async function ToolDetailPage({ params }: { params: RouteParams }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <BackNav href="/ai-management/tools" label="Tools" />
       <AiPageHeader
         title={tool.name}
         description={tool.description || "Tool configuration and assignment details."}
-        action={
-          <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/tools" />}>
-            <ArrowLeft className="size-4" />
-            Back to Tools
-          </Button>
-        }
       />
 
       <Card>

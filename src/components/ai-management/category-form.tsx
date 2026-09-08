@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,7 @@ export function CategoryForm({ mode, category }: CategoryFormProps) {
 
   return (
     <>
+      <BackNav href="/ai-management/categories" label="Categories" />
       <AiPageHeader
         title={mode === "create" ? "Create Category" : "Edit Category"}
         description={mode === "create" ? "Add a new category to organize your agents." : `Update the configuration for ${category?.name ?? "this category"}.`}

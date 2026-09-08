@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot } from "lucide-react";
+import { Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AgentPreviewChat } from "@/components/ai-management/agent-preview-chat";
@@ -51,15 +51,10 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <BackNav href={`/ai-management/agents/${id}`} label="Agent" />
       <AiPageHeader
         title={`${agent.name} — Preview`}
         description="Review the full agent configuration and test interactions."
-        action={
-          <Button variant="outline" nativeButton={false} render={<Link href={`/ai-management/agents/${id}`} />}>
-            <ArrowLeft className="size-4" />
-            Back to Agent
-          </Button>
-        }
       />
 
       <Card>

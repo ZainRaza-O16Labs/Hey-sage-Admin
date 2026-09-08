@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Bot, User, MessageSquare, Trash2 } from "lucide-react";
+import { Bot, User, MessageSquare, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AISkeleton } from "@/components/ai-management/ai-skeleton";
 import { useRouter } from "next/navigation";
 
@@ -108,15 +108,10 @@ export default function ConversationDetailPage() {
   if (error === "not-found" || !conversation) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
+        <BackNav href="/ai-management/conversations" label="Conversations" />
         <AiPageHeader
           title="Conversation Detail"
           description="Conversation not found."
-          action={
-            <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/conversations" />}>
-              <ArrowLeft className="size-4" />
-              Back to Conversations
-            </Button>
-          }
         />
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -130,15 +125,10 @@ export default function ConversationDetailPage() {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
+        <BackNav href="/ai-management/conversations" label="Conversations" />
         <AiPageHeader
           title="Conversation Detail"
           description={`Conversation ${conversation.id.slice(0, 8)}… with ${conversation.agent_name ?? "unknown agent"}.`}
-          action={
-            <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/conversations" />}>
-              <ArrowLeft className="size-4" />
-              Back to Conversations
-            </Button>
-          }
         />
       </div>
 

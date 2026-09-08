@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Database, Edit, FileText } from "lucide-react";
+import { Database, Edit, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { BackNav } from "@/components/ai-management/back-nav";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AiKnowledgeBaseDocumentsPanel } from "@/components/ai-management/ai-knowledge-base-documents-panel";
@@ -46,15 +47,12 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
+        <BackNav href="/ai-management/knowledge-bases" label="Knowledge Bases" />
         <AiPageHeader
           title={kb.name}
           description={kb.description || "Knowledge base for document management."}
           action={
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/knowledge-bases" />}>
-                <ArrowLeft className="size-4" />
-                Back to Knowledge Bases
-              </Button>
               <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
                 <Edit className="size-4" />
                 Edit
