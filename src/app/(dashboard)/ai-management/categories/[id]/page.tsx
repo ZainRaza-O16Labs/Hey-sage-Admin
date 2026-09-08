@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Bot, Edit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
@@ -12,6 +13,7 @@ type RouteParams = Promise<{ id: string }>;
 
 export default async function CategoryDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
+  const router = useRouter();
 
   let category;
   try {
@@ -24,10 +26,28 @@ export default async function CategoryDetailPage({ params }: { params: RoutePara
   }
   if (!category) notFound();
 
-  const editHref = `/ai-management/categories/${category.id}/edit`;
+  const listHref = "/ai-management/categories";
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      {/* Back button at the top */}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => router.back()}
+        aria-label="Back"
+        className="rounded-md p-1.5 hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="size-4 shrink-0"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path d="M15.293 7.293a1 1 0 01-1.414 0L10 10.586 5.293 5.293a1 1 0 01-1.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" />
+        </svg>
+      </Button>
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <AiPageHeader
           title={category.name}
@@ -94,7 +114,8 @@ export default async function CategoryDetailPage({ params }: { params: RoutePara
             </p>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,14 @@ import {
   listAgentKnowledgeBaseAssignments,
   listToolsByAgent,
 } from "@/lib/ai-management/store";
+import { useRouter } from "next/navigation";
 
 type RouteParams = Promise<{ id: string }>;
 
-export default async function AgentDetailPage({ params }: { params: RouteParams }) {
+export default function AgentDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
+  const router = useRouter();
 
   let agent;
   try {
@@ -46,25 +49,41 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <AiPageHeader
-          title={agent.name}
-          description={agent.description || "No description provided."}
-          action={
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>
-                <Send className="size-4" />
-                Test Agent
-              </Button>
-              <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
-                <Edit className="size-4" />
-                Edit Agent
-              </Button>
-              <AiAgentDeleteButton id={agent.id} name={agent.name} />
-            </div>
-          }
-        />
-      </div>
+      {/* Back button at the top */}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => router.back()}
+        aria-label="Back"
+        className="rounded-md p-1.5 hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="size-4 shrink-0"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path d="M15.293 7.293a1 1 0 01-1.414 0L10 10.586 5.293 5.293a1 1 0 01-1.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414z" />
+        </svg>
+      </Button>
+
+      <AiPageHeader
+        title={agent.name}
+        description={agent.description || "No description provided."}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>
+              <Send className="size-4" />
+              Test Agent
+            </Button>
+            <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
+              <Edit className="size-4" />
+              Edit Agent
+            </Button>
+            <AiAgentDeleteButton id={agent.id} name={agent.name} />
+          </div>
+        }
+      />
 
       {/* Lifecycle notice */}
       <Card>
@@ -164,7 +183,7 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
             </div>
             <div>
               <CardTitle>Instructions</CardTitle>
-              <CardDescription>The system instruction that guides this agent&apos;s behavior.</CardDescription>
+              <CardDescription>The system instruction that guides this agent's behavior.</CardDescription>
             </div>
           </div>
         </CardHeader>
