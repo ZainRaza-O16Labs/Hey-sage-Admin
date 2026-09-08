@@ -116,7 +116,9 @@ function NativeSelect({
       <SelectPrimitive.Portal>
         <SelectPrimitive.Positioner
           side="bottom"
-          sideOffset={8}
+          sideOffset={4}
+          align="start"
+          alignItemWithTrigger={false}
           className="z-[60]"
         >
           <SelectPrimitive.Popup
@@ -124,7 +126,7 @@ function NativeSelect({
               "rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-lg shadow-black/5",
               "dark:bg-[oklch(0.225_0_0)] dark:shadow-black/40",
               "animate-in fade-in-0 zoom-in-95 duration-100",
-              "min-w-8 max-h-60 overflow-y-auto",
+              "min-w-[var(--anchor-width)] max-h-60 overflow-y-auto",
             )}
             role="listbox"
           >
