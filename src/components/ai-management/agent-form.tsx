@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { BackNav } from "@/components/ai-management/back-nav";
-import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIEmptyState } from "@/components/ai-management/ai-empty-state";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AIFormSkeleton } from "@/components/ai-management/ai-skeleton";
@@ -51,6 +50,7 @@ import {
   runtimeConfigFromConfiguration,
   type AgentRuntimeConfig,
 } from "@/lib/ai-management/agent-config";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
 type AgentFormProps = {
@@ -179,8 +179,6 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   const [kbView, setKbView] = useState<"assigned" | "available">("assigned");
 
   const [pending, setPending] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const filledVoiceRows = voiceRows.filter((row) => row.voiceId.trim());
   const allFilledVoicesVerified =
@@ -248,6 +246,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       if (!stillCurrent) return;
 
       if (response.ok && payload?.ok && payload.voiceId === voiceId) {
+        notifySuccess("Voice verified successfully.");
         setVoiceRows((current) => {
           const next = current.map((item) =>
             item.localId === localId
@@ -275,6 +274,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           return next;
         });
       } else {
+        notifyError("Voice verification failed.");
         setVoiceRows((current) =>
           current.map((item) =>
             item.localId === localId
@@ -290,6 +290,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
         );
       }
     } catch {
+      notifyError("Voice verification failed.");
       const stillCurrent = voiceRowsRef.current.find(
         (item) => item.localId === localId && item.voiceId.trim() === voiceId,
       );
@@ -484,8 +485,6 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     if (!validate()) return;
 
     setPending(true);
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     const voicesPayload = filledVoiceRows.map((row) => ({
       voice_id: row.voiceId.trim(),
@@ -547,19 +546,20 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
 
       if (!response.ok) {
         setErrors(data.errors ?? {});
-        setErrorMessage(data.error ?? "Could not save agent.");
+        notifyError(data.error ?? "Failed to save agent.");
         return;
       }
 
       if (isEdit) {
+        notifySuccess("Agent updated successfully.");
         router.refresh();
-        setSuccessMessage("Agent updated successfully.");
       } else if (data.agent) {
+        notifySuccess("Agent created successfully.");
         router.push(`/ai-management/agents/${data.agent.id}`);
         router.refresh();
       }
     } catch {
-      setErrorMessage("Network error. Try again.");
+      notifyError("Failed to save agent.");
     } finally {
       setPending(false);
     }
@@ -1235,23 +1235,6 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
               </h2>
 
               {stepContent[currentStep - 1]}
-
-              {successMessage && (
-                <AiMessageBanner
-                  kind="success"
-                  onDismiss={() => setSuccessMessage(null)}
-                >
-                  {successMessage}
-                </AiMessageBanner>
-              )}
-              {errorMessage && (
-                <AiMessageBanner
-                  kind="error"
-                  onDismiss={() => setErrorMessage(null)}
-                >
-                  {errorMessage}
-                </AiMessageBanner>
-              )}
 
               <div className="flex items-center justify-between gap-2 border-t pt-5">
                 <div>

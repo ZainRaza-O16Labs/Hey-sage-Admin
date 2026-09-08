@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AIConfirmDialog } from "@/components/ai-management/ai-confirm-dialog";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 export function AiAgentDeleteButton({
   id,
@@ -28,9 +29,11 @@ export function AiAgentDeleteButton({
         const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error ?? "Could not delete agent.");
       }
+      notifySuccess("Agent deleted successfully.");
       router.push("/ai-management/agents");
       router.refresh();
-    } catch {
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to delete agent.");
       setDeleting(false);
     }
   }

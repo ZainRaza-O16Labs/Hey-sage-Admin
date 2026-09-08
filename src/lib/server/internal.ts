@@ -71,6 +71,32 @@ export function enqueueKnowledgeBaseDocumentProcess(
   );
 }
 
+/** Best-effort runtime refresh after admin changes an agent's voice catalog. */
+export async function invalidateAgentRuntimeCache(
+  agentId: string,
+): Promise<boolean> {
+  const secret = getInternalSecret();
+  if (!secret) return false;
+
+  try {
+    const response = await fetch(
+      `${getMastraUrl()}/internal/agents/${agentId}/cache/invalidate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (response.status === 202 || response.ok) return true;
+  } catch {
+    // Runtime not reachable — the 5-minute TTL will self-heal.
+  }
+  return false;
+}
+
 /**
  * Run a live chat against an agent in any lifecycle state (Draft/Unpublished/
  * Published) through the real runtime — no conversation persistence.

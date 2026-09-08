@@ -15,6 +15,7 @@ import {
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { BackNav } from "@/components/ai-management/back-nav";
 import { AISkeleton } from "@/components/ai-management/ai-skeleton";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 
 type ConversationMessage = {
@@ -88,10 +89,11 @@ export default function ConversationDetailPage() {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(payload.error ?? "Could not delete conversation.");
       }
+      notifySuccess("Conversation deleted successfully.");
       router.push("/ai-management/conversations");
       router.refresh();
     } catch (caught) {
-      window.alert(caught instanceof Error ? caught.message : "Could not delete conversation.");
+      notifyError(caught instanceof Error ? caught.message : "Could not delete conversation.");
       setDeleting(false);
     }
   }
@@ -124,13 +126,11 @@ export default function ConversationDetailPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <BackNav href="/ai-management/conversations" label="Conversations" />
-        <AiPageHeader
-          title="Conversation Detail"
-          description={`Conversation ${conversation.id.slice(0, 8)}… with ${conversation.agent_name ?? "unknown agent"}.`}
-        />
-      </div>
+      <BackNav href="/ai-management/conversations" label="Conversations" />
+      <AiPageHeader
+        title="Conversation Detail"
+        description={`Conversation ${conversation.id.slice(0, 8)}… with ${conversation.agent_name ?? "unknown agent"}.`}
+      />
 
       <Card>
         <CardHeader>

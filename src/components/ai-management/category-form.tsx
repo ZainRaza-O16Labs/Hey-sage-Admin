@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import type { AiCategory } from "@/lib/ai-management/store";
 
 type CategoryFormInput = {
@@ -40,7 +41,6 @@ export function CategoryForm({ mode, category }: CategoryFormProps) {
       : emptyForm
   );
   const [errors, setErrors] = useState<Partial<Record<keyof CategoryFormInput, string>>>({});
-  const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   function update<K extends keyof CategoryFormInput>(key: K, value: CategoryFormInput[K]) {
@@ -50,7 +50,6 @@ export function CategoryForm({ mode, category }: CategoryFormProps) {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setMessage(null);
     setErrors({});
 
     try {
@@ -66,20 +65,21 @@ export function CategoryForm({ mode, category }: CategoryFormProps) {
 
       if (!response.ok) {
         setErrors(payload.errors ?? {});
-        setMessage(payload.error ?? "Could not save category.");
+        notifyError(payload.error ?? (mode === "create" ? "Failed to create category." : "Failed to update category."));
         return;
       }
 
       if (mode === "create" && payload.category) {
+        notifySuccess("Category created successfully.");
         router.push(`/ai-management/categories/${payload.category.id}`);
         router.refresh();
         return;
       }
 
+      notifySuccess("Category updated successfully.");
       router.refresh();
-      setMessage("Saved.");
     } catch {
-      setMessage("Network error. Try again.");
+      notifyError(mode === "create" ? "Failed to create category." : "Failed to update category.");
     } finally {
       setPending(false);
     }
@@ -163,12 +163,6 @@ export function CategoryForm({ mode, category }: CategoryFormProps) {
                 <option value="inactive">Inactive</option>
               </NativeSelect>
             </div>
-
-            {message && (
-              <p className={message === "Saved." ? "text-sm text-muted-foreground" : "text-sm text-destructive"}>
-                {message}
-              </p>
-            )}
 
             <div className="flex gap-2">
               <Button type="submit" disabled={pending}>

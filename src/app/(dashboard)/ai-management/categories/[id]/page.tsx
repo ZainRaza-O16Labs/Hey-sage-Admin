@@ -45,21 +45,19 @@ export default async function CategoryDetailPage({ params }: { params: RoutePara
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <BackNav href="/ai-management/categories" label="Categories" />
-        <AiPageHeader
-          title={category.name}
-          description={category.description || "No description provided."}
-          action={
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
-                <Edit className="size-4" />
-                Edit Category
-              </Button>
-            </div>
-          }
-        />
-      </div>
+      <BackNav href="/ai-management/categories" label="Categories" />
+      <AiPageHeader
+        title={category.name}
+        description={category.description || "No description provided."}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
+              <Edit className="size-4" />
+              Edit Category
+            </Button>
+          </div>
+        }
+      />
 
       <Card>
         <CardHeader>

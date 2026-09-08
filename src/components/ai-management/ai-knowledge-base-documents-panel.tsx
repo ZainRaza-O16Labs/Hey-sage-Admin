@@ -15,6 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import type { AiDocument } from "@/lib/ai-management/knowledge-bases";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "";
@@ -40,7 +41,7 @@ export function AiKnowledgeBaseDocumentsPanel({
   const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AiDocument | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,40 +62,52 @@ export function AiKnowledgeBaseDocumentsPanel({
   }
 
   function openUpload() {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setError(null);
     setUploadOpen(true);
   }
 
-  function selectFile(file: File | null) {
-    if (!file) return;
-    setSelectedFile(file);
+  function selectFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const next = Array.from(files);
+    setSelectedFiles((prev) => [...prev, ...next]);
+  }
+
+  function removeSelectedFile(index: number) {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragging(false);
-    selectFile(event.dataTransfer.files?.[0] ?? null);
+    selectFiles(event.dataTransfer.files);
+  }
+
+  async function uploadOne(file: File): Promise<void> {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch(`/api/ai-management/knowledge-bases/${knowledgeBaseId}/documents`, {
+      method: "POST",
+      body,
+    });
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) throw new Error(payload.error ?? "Could not upload document.");
   }
 
   async function handleUpload() {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
     setUploading(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append("file", selectedFile);
-      const response = await fetch(`/api/ai-management/knowledge-bases/${knowledgeBaseId}/documents`, {
-        method: "POST",
-        body,
-      });
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Could not upload document.");
+      for (const file of selectedFiles) {
+        await uploadOne(file);
+      }
       await load();
       setUploadOpen(false);
-      setSelectedFile(null);
+      setSelectedFiles([]);
+      notifySuccess(selectedFiles.length > 1 ? "Documents uploaded successfully." : "Document uploaded successfully.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed.");
+      notifyError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -111,8 +124,9 @@ export function AiKnowledgeBaseDocumentsPanel({
       if (!response.ok) throw new Error(payload.error ?? "Could not delete document.");
       setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
       setDeleteTarget(null);
+      notifySuccess("Document deleted successfully.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed.");
+      notifyError(e instanceof Error ? e.message : "Delete failed.");
     } finally {
       setActionId(null);
     }
@@ -128,8 +142,9 @@ export function AiKnowledgeBaseDocumentsPanel({
       const payload = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not reindex document.");
       await load();
+      notifySuccess("Document reindexed successfully.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Reindex failed.");
+      notifyError(e instanceof Error ? e.message : "Reindex failed.");
     } finally {
       setActionId(null);
     }
@@ -162,10 +177,11 @@ export function AiKnowledgeBaseDocumentsPanel({
             <input
               ref={inputRef}
               type="file"
+              multiple
               accept=".pdf,.md,.markdown,application/pdf,text/markdown"
               className="hidden"
               onChange={(e) => {
-                selectFile(e.target.files?.[0] ?? null);
+                selectFiles(e.target.files);
                 e.target.value = "";
               }}
             />
@@ -183,7 +199,7 @@ export function AiKnowledgeBaseDocumentsPanel({
             >
               <FileUp className="size-10 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">Drag &amp; drop your file here, or</p>
+                <p className="text-sm font-medium">Drag &amp; drop files here, or</p>
                 <p className="text-xs text-muted-foreground">
                   Supported formats: PDF, Markdown (.md, .markdown). Maximum file size: 15MB.
                 </p>
@@ -198,15 +214,34 @@ export function AiKnowledgeBaseDocumentsPanel({
               </Button>
             </div>
 
-            {selectedFile && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{selectedFile.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatBytes(selectedFile.size)}
-                    </p>
-                  </div>
+            {selectedFiles.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {selectedFiles.length} file{selectedFiles.length === 1 ? "" : "s"} selected
+                </p>
+                <div className="space-y-2">
+                  {selectedFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${file.size}-${index}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatBytes(file.size)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        disabled={uploading}
+                        onClick={() => removeSelectedFile(index)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="space-y-1.5 text-sm">
@@ -235,7 +270,7 @@ export function AiKnowledgeBaseDocumentsPanel({
             <Button
               type="button"
               onClick={() => void handleUpload()}
-              disabled={!selectedFile || uploading}
+              disabled={selectedFiles.length === 0 || uploading}
             >
               <FileUp className="size-4" />
               {uploading ? "Uploading..." : "Upload"}
@@ -248,7 +283,7 @@ export function AiKnowledgeBaseDocumentsPanel({
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <p className="text-sm font-medium">No documents uploaded</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upload PDF or Markdown files, then assign this knowledge base to agents from the agent editor.
+            Upload documents to give this Knowledge Base information that assigned agents can retrieve.
           </p>
         </div>
       ) : (

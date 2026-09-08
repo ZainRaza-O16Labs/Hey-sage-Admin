@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AiKnowledgeBase } from "@/lib/ai-management/knowledge-bases";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 type AiKnowledgeBaseWithStats = AiKnowledgeBase & {
   documentCount?: number;
@@ -81,8 +82,9 @@ export function AiKnowledgeBasesPageContent() {
       }
       setKbs((prev) => prev.filter((kb) => kb.id !== deleteTarget.id));
       setDeleteTarget(null);
-    } catch {
-      // handled inline
+      notifySuccess("Knowledge base deleted successfully.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to delete knowledge base.");
     } finally {
       setDeleting(false);
     }
@@ -96,11 +98,19 @@ export function AiKnowledgeBasesPageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!response.ok) throw new Error("Could not update status.");
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Could not update knowledge base status.");
+      }
       const data = (await response.json()) as { knowledgeBase: AiKnowledgeBase };
       setKbs((prev) => prev.map((k) => (k.id === kb.id ? data.knowledgeBase : k)));
-    } catch {
-      // handled inline
+      notifySuccess(
+        newStatus === "active"
+          ? "Knowledge base activated successfully."
+          : "Knowledge base deactivated successfully.",
+      );
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to update knowledge base status.");
     }
   }
 

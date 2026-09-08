@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Agent } from "@/lib/agents/schema";
 import type { AiCategory } from "@/lib/ai-management/store";
+import { notifyError } from "@/lib/notify";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -95,11 +96,13 @@ export default function PlaygroundPage() {
         }
         setDebugSteps((prev) => [...prev, { label: "Error", detail }]);
         setMessages((prev) => [...prev, { role: "assistant", content: detail }]);
+        notifyError(detail);
       }
     } catch (caught) {
       const detail = caught instanceof Error ? caught.message : "Could not reach the agent runtime.";
       setDebugSteps((prev) => [...prev, { label: "Error", detail }]);
       setMessages((prev) => [...prev, { role: "assistant", content: detail }]);
+      notifyError(detail);
     } finally {
       setSending(false);
     }

@@ -19,6 +19,7 @@ import type { AiCategory } from "@/lib/ai-management/store";
 import type { AiTool } from "@/lib/ai-management/tools";
 import { fetchCategories } from "@/lib/ai-management/categories";
 import { fetchTools } from "@/lib/ai-management/tools";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 type AgentWithDocumentCount = Agent & { documentCount?: number };
 
@@ -113,9 +114,10 @@ export function AiAgentsPageContent() {
       }
       setAgents((prev) => prev.filter((a) => a.id !== deleteTarget.id));
       setDeleteTarget(null);
+      notifySuccess("Agent deleted successfully.");
       router.refresh();
-    } catch {
-      // Error handled inline
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to delete agent.");
     } finally {
       setDeleting(false);
     }

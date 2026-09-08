@@ -56,13 +56,12 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <BackNav href="/ai-management/agents" label="Agents" />
-        <AiPageHeader
-          title={agent.name}
-          description={agent.description || "No description provided."}
-          action={
-            <div className="flex flex-wrap gap-2">
+      <BackNav href="/ai-management/agents" label="Agents" />
+      <AiPageHeader
+        title={agent.name}
+        description={agent.description || "No description provided."}
+        action={
+          <div className="flex flex-wrap gap-2">
               <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>
                 <Send className="size-4" />
                 Preview Agent
@@ -80,9 +79,7 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
             </div>
           }
         />
-      </div>
 
-      {/* Lifecycle notice */}
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-2 py-4">
           <div className="flex items-center gap-3">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { deleteAgent, getAgent, updateAgent } from "@/lib/agents/store";
 import { isUuid, validateAgentPatch } from "@/lib/agents/schema";
 import { listAgentVoices, replaceAgentVoices } from "@/lib/agents/voices";
+import { invalidateAgentRuntimeCache } from "@/lib/server/internal";
 import { syncAgentAssignments } from "@/lib/ai-management/store";
 import {
   jsonError,
@@ -78,6 +79,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     let voices = await listAgentVoices(id);
     if (parsed.data.voices) {
       voices = await replaceAgentVoices(id, parsed.data.voices);
+      await invalidateAgentRuntimeCache(id);
     }
 
     return NextResponse.json({ agent: { ...agent, voices } });

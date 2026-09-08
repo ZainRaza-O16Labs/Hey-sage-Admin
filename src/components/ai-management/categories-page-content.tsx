@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Agent } from "@/lib/agents/schema";
 import type { AiCategory } from "@/lib/ai-management/store";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 export function CategoriesPageContent() {
   const router = useRouter();
@@ -76,9 +77,10 @@ export function CategoriesPageContent() {
       }
       setCategories((prev) => prev.filter((c) => c.id !== deleteTarget.id));
       setDeleteTarget(null);
+      notifySuccess("Category deleted successfully.");
       router.refresh();
-    } catch {
-      // Error handled inline
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to delete category.");
     } finally {
       setDeleting(false);
     }
@@ -92,12 +94,18 @@ export function CategoriesPageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!response.ok) throw new Error("Could not update status.");
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Could not update category status.");
+      }
       const data = (await response.json()) as { category: AiCategory };
       setCategories((prev) => prev.map((c) => (c.id === cat.id ? data.category : c)));
+      notifySuccess(
+        newStatus === "active" ? "Category activated successfully." : "Category deactivated successfully.",
+      );
       router.refresh();
-    } catch {
-      // Error handled inline
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to update category status.");
     }
   }
 

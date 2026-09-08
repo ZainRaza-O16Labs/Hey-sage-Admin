@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { BackNav } from "@/components/ai-management/back-nav";
-import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AIFormSkeleton } from "@/components/ai-management/ai-skeleton";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
@@ -41,6 +40,7 @@ import {
   updateKnowledgeBase,
 } from "@/lib/ai-management/knowledge-bases";
 import { runtimeConfigFromConfiguration } from "@/lib/ai-management/agent-config";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
 type KnowledgeBaseFormProps = {
@@ -95,8 +95,6 @@ export function KnowledgeBaseForm({
   const [loadKey, setLoadKey] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [agentSearch, setAgentSearch] = useState("");
   const [agentView, setAgentView] = useState<"assigned" | "available">(
@@ -202,8 +200,6 @@ export function KnowledgeBaseForm({
 
   function update<K extends keyof FormInput>(key: K, value: FormInput[K]) {
     setForm((current) => ({ ...current, [key]: value }));
-    setSuccessMessage(null);
-    setErrorMessage(null);
   }
 
   function validateStep(step: number): boolean {
@@ -253,7 +249,6 @@ export function KnowledgeBaseForm({
 
     if (mode === "create" && currentStep === 1) {
       setPending(true);
-      setErrorMessage(null);
       try {
         if (knowledgeBase) {
           await updateKnowledgeBase(knowledgeBase.id, {
@@ -261,6 +256,7 @@ export function KnowledgeBaseForm({
             description: form.description,
             status: form.status,
           });
+          notifySuccess("Knowledge base updated successfully.");
         } else {
           const created = await createKnowledgeBaseApi({
             name: form.name,
@@ -268,6 +264,7 @@ export function KnowledgeBaseForm({
             status: form.status,
           });
           setKnowledgeBase(created);
+          notifySuccess("Knowledge base created successfully.");
           setCompletedSteps((prev) => {
             const next = new Set(prev);
             next.add(1);
@@ -277,7 +274,7 @@ export function KnowledgeBaseForm({
           return;
         }
       } catch (err) {
-        setErrorMessage(
+        notifyError(
           err instanceof Error ? err.message : "Could not create the knowledge base.",
         );
         return;
@@ -310,8 +307,6 @@ export function KnowledgeBaseForm({
     event.preventDefault();
     if (currentStep < STEP_COUNT) return;
     setPending(true);
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     try {
       let kb = knowledgeBase;
@@ -360,13 +355,14 @@ export function KnowledgeBaseForm({
 
       if (isEdit) {
         router.refresh();
-        setSuccessMessage("Knowledge base updated successfully.");
+        notifySuccess("Knowledge base updated successfully.");
       } else {
+        notifySuccess("Knowledge base created successfully.");
         router.push(`/ai-management/knowledge-bases/${kbId}`);
         router.refresh();
       }
     } catch (err) {
-      setErrorMessage(
+      notifyError(
         err instanceof Error ? err.message : "Could not save knowledge base.",
       );
     } finally {
@@ -741,23 +737,6 @@ export function KnowledgeBaseForm({
             </h2>
 
             {stepContent[currentStep - 1]}
-
-            {successMessage && (
-              <AiMessageBanner
-                kind="success"
-                onDismiss={() => setSuccessMessage(null)}
-              >
-                {successMessage}
-              </AiMessageBanner>
-            )}
-            {errorMessage && (
-              <AiMessageBanner
-                kind="error"
-                onDismiss={() => setErrorMessage(null)}
-              >
-                {errorMessage}
-              </AiMessageBanner>
-            )}
 
             <div className="flex items-center justify-between gap-2 border-t pt-5">
               <div>

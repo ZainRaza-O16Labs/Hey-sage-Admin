@@ -21,13 +21,11 @@ export default async function CategoryKnowledgePage({ params }: { params: RouteP
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <BackNav href={`/ai-management/categories/${id}`} label="Category" />
-        <AiPageHeader
-          title={`${category.name} — Knowledge`}
-          description="Manage knowledge bases shared across agents in this category."
-        />
-      </div>
+      <BackNav href={`/ai-management/categories/${id}`} label="Category" />
+      <AiPageHeader
+        title={`${category.name} — Knowledge`}
+        description="Manage knowledge bases shared across agents in this category."
+      />
 
       <Card>
         <CardHeader>

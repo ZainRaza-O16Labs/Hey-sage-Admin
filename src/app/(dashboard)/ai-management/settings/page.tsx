@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 type AiSettings = {
   default_model: string;
@@ -40,7 +41,6 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [elevenLabsKey, setElevenLabsKey] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
   const [validate, setValidate] = useState<ValidateState>({ state: "idle" });
 
   useEffect(() => {
@@ -65,12 +65,10 @@ export default function SettingsPage() {
 
   function update<K extends keyof AiSettings>(key: K, value: AiSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
-    setMessage(null);
   }
 
   async function handleSave() {
     setSaving(true);
-    setMessage(null);
     setValidate({ state: "idle" });
     try {
       const { elevenlabs_configured: _c, elevenlabs_source: _s, ...rest } = settings;
@@ -87,14 +85,14 @@ export default function SettingsPage() {
       });
       const payload = (await response.json()) as { settings?: AiSettings; error?: string };
       if (!response.ok) {
-        setMessage(payload.error ?? "Could not save settings.");
+        notifyError(payload.error ?? "Could not save settings.");
         return;
       }
       if (payload.settings) setSettings(payload.settings);
       setElevenLabsKey("");
-      setMessage("Settings saved.");
+      notifySuccess("Settings saved successfully.");
     } catch {
-      setMessage("Could not save settings.");
+      notifyError("Could not save settings.");
     } finally {
       setSaving(false);
     }
@@ -117,14 +115,17 @@ export default function SettingsPage() {
           state: "ok",
           detail: `Connected · ${payload.subscription ?? "active"} plan`,
         });
+        notifySuccess("ElevenLabs connection verified.");
       } else {
         setValidate({
           state: "error",
           detail: payload.detail ?? payload.error ?? "Validation failed.",
         });
+        notifyError(payload.detail ?? payload.error ?? "ElevenLabs validation failed.");
       }
     } catch {
       setValidate({ state: "error", detail: "Could not reach the validation endpoint." });
+      notifyError("Could not reach the validation endpoint.");
     }
   }
 
@@ -132,7 +133,6 @@ export default function SettingsPage() {
     setElevenLabsKey("");
     setValidate({ state: "idle" });
     setSaving(true);
-    setMessage(null);
     try {
       await fetch("/api/ai-management/settings", {
         method: "PUT",
@@ -144,9 +144,9 @@ export default function SettingsPage() {
         const data = (await response.json()) as { settings?: AiSettings };
         if (data.settings) setSettings(data.settings);
       }
-      setMessage("ElevenLabs key removed.");
+      notifySuccess("ElevenLabs key removed.");
     } catch {
-      setMessage("Could not remove the ElevenLabs key.");
+      notifyError("Could not remove the ElevenLabs key.");
     } finally {
       setSaving(false);
     }
@@ -349,10 +349,6 @@ export default function SettingsPage() {
           {saving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
-
-      {message && (
-        <p className="text-sm text-muted-foreground">{message}</p>
-      )}
     </div>
   );
 }

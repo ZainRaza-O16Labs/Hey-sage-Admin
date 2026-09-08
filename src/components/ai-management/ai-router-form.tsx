@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
-import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import type { AiCategory, ParentAgentConfig } from "@/lib/ai-management/store";
 
 type FormState = Omit<ParentAgentConfig, "id" | "organization_id" | "created_at" | "updated_at">;
@@ -30,7 +30,6 @@ export function AiRouterForm({
   categories?: AiCategory[];
 }) {
   const [form, setForm] = useState<FormState>(initial ?? initialState);
-  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
 
@@ -49,7 +48,6 @@ export function AiRouterForm({
 
   async function save() {
     setLoading(true);
-    setMessage(null);
     try {
       const response = await fetch("/api/ai-management/parent-agent", {
         method: "PUT",
@@ -57,9 +55,13 @@ export function AiRouterForm({
         body: JSON.stringify(form),
       });
       const payload = (await response.json()) as { error?: string };
-      setMessage(response.ok ? "Saved." : payload.error ?? "Could not save the AI Router configuration.");
+      if (!response.ok) {
+        notifyError(payload.error ?? "Could not save the AI Router configuration.");
+        return;
+      }
+      notifySuccess("AI Router configuration saved successfully.");
     } catch {
-      setMessage("Network error. Try again.");
+      notifyError("Network error. Try again.");
     } finally {
       setLoading(false);
     }
@@ -140,12 +142,6 @@ export function AiRouterForm({
           </NativeSelect>
         </div>
       </div>
-
-      {message ? (
-        <AiMessageBanner kind="success" onDismiss={() => setMessage(null)}>
-          {message}
-        </AiMessageBanner>
-      ) : null}
 
       <Button onClick={save} disabled={loading}>
         {loading ? "Saving..." : "Save Changes"}

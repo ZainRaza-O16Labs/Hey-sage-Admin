@@ -7,6 +7,7 @@ import {
   replaceAgentVoices,
   setDefaultAgentVoice,
 } from "@/lib/agents/voices";
+import { invalidateAgentRuntimeCache } from "@/lib/server/internal";
 import {
   jsonError,
   requireApiUser,
@@ -63,6 +64,7 @@ export async function PUT(request: Request, context: RouteContext) {
       id,
       source.voices as Parameters<typeof replaceAgentVoices>[1],
     );
+    await invalidateAgentRuntimeCache(id);
     return NextResponse.json({ voices });
   } catch (error) {
     return storeErrorResponse(error);
@@ -94,11 +96,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (typeof source?.deleteVoiceId === "string" && source.deleteVoiceId) {
       const voices = await deleteAgentVoice(id, source.deleteVoiceId);
+      await invalidateAgentRuntimeCache(id);
       return NextResponse.json({ voices });
     }
 
     if (typeof source?.defaultVoiceId === "string" && source.defaultVoiceId) {
       const voices = await setDefaultAgentVoice(id, source.defaultVoiceId);
+      await invalidateAgentRuntimeCache(id);
       return NextResponse.json({ voices });
     }
 

@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { BackNav } from "@/components/ai-management/back-nav";
-import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AISkeleton } from "@/components/ai-management/ai-skeleton";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
@@ -27,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import type { Agent } from "@/lib/agents/schema";
 import type { AiTool } from "@/lib/ai-management/tools";
 import { runtimeConfigFromConfiguration } from "@/lib/ai-management/agent-config";
+import { notifyError, notifySuccess } from "@/lib/notify";
 
 type RouteParams = Promise<{ id: string }>;
 
@@ -44,8 +44,6 @@ export default function AgentToolsPage({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "assigned" | "available">("all");
   const [pending, setPending] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -112,8 +110,6 @@ export default function AgentToolsPage({
   async function handleSave() {
     if (!agentId || !agent) return;
     setPending(true);
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     try {
       const response = await fetch(`/api/agents/${agentId}`, {
@@ -132,16 +128,16 @@ export default function AgentToolsPage({
       };
 
       if (!response.ok) {
-        setErrorMessage(data.error ?? "Could not save tool configuration.");
+        notifyError(data.error ?? "Could not save tool configuration.");
         return;
       }
 
       if (data.agent) {
         setAgent(data.agent);
       }
-      setSuccessMessage("Tool configuration saved successfully.");
+      notifySuccess("Tool configuration saved successfully.");
     } catch {
-      setErrorMessage("Network error. Try again.");
+      notifyError("Network error. Try again.");
     } finally {
       setPending(false);
     }
@@ -295,23 +291,6 @@ export default function AgentToolsPage({
           )}
         </CardContent>
       </Card>
-
-      {successMessage && (
-        <AiMessageBanner
-          kind="success"
-          onDismiss={() => setSuccessMessage(null)}
-        >
-          {successMessage}
-        </AiMessageBanner>
-      )}
-      {errorMessage && (
-        <AiMessageBanner
-          kind="error"
-          onDismiss={() => setErrorMessage(null)}
-        >
-          {errorMessage}
-        </AiMessageBanner>
-      )}
 
       <div className="flex justify-end">
         <Button

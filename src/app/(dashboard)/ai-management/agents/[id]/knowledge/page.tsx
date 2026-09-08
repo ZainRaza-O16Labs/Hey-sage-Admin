@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { BackNav } from "@/components/ai-management/back-nav";
-import { AiMessageBanner } from "@/components/ai-management/ai-message-banner";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AISkeleton } from "@/components/ai-management/ai-skeleton";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
@@ -28,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { Agent } from "@/lib/agents/schema";
 import type { AiKnowledgeBase } from "@/lib/ai-management/knowledge-bases";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import {
   runtimeConfigFromConfiguration,
   type AgentRuntimeConfig,
@@ -54,8 +54,6 @@ export default function AgentKnowledgePage({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "assigned" | "available">("all");
   const [pending, setPending] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -129,8 +127,6 @@ export default function AgentKnowledgePage({
   async function handleSave() {
     if (!agentId || !agent) return;
     setPending(true);
-    setSuccessMessage(null);
-    setErrorMessage(null);
 
     try {
       const response = await fetch(`/api/agents/${agentId}`, {
@@ -154,18 +150,16 @@ export default function AgentKnowledgePage({
       };
 
       if (!response.ok) {
-        setErrorMessage(
-          data.error ?? "Could not save knowledge configuration.",
-        );
+        notifyError(data.error ?? "Could not save knowledge configuration.");
         return;
       }
 
       if (data.agent) {
         setAgent(data.agent);
       }
-      setSuccessMessage("Knowledge configuration saved successfully.");
+      notifySuccess("Knowledge configuration saved successfully.");
     } catch {
-      setErrorMessage("Network error. Try again.");
+      notifyError("Network error. Try again.");
     } finally {
       setPending(false);
     }
@@ -394,23 +388,6 @@ export default function AgentKnowledgePage({
           </p>
         </CardContent>
       </Card>
-
-      {successMessage && (
-        <AiMessageBanner
-          kind="success"
-          onDismiss={() => setSuccessMessage(null)}
-        >
-          {successMessage}
-        </AiMessageBanner>
-      )}
-      {errorMessage && (
-        <AiMessageBanner
-          kind="error"
-          onDismiss={() => setErrorMessage(null)}
-        >
-          {errorMessage}
-        </AiMessageBanner>
-      )}
 
       <div className="flex justify-end">
         <Button
