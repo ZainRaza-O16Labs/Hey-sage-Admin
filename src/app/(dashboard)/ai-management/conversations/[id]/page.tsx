@@ -28,6 +28,7 @@ type ConversationMessage = {
 type Conversation = {
   id: string;
   agent_id: string;
+  user_id?: string | null;
   agent_name?: string;
   category_name?: string;
   message_count: number;
@@ -146,6 +147,12 @@ export default function ConversationDetailPage() {
           <CardTitle>Conversation Info</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">User</span>
+            <span className="truncate text-sm text-muted-foreground">
+              {conversation.user_id ?? "—"}
+            </span>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Agent</span>
             <span className="text-sm text-muted-foreground">{conversation.agent_name ?? "—"}</span>

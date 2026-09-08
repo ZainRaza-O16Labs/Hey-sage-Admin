@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
+import { ArrowLeft, Bot, Edit, Puzzle, BookOpen, FileText, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { isUuid } from "@/lib/agents/schema";
 import {
   listAgentKnowledgeBaseAssignments,
   listToolsByAgent,
+  getCategory,
 } from "@/lib/ai-management/store";
 
 type RouteParams = Promise<{ id: string }>;
@@ -30,19 +31,25 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
   }
   if (!agent) notFound();
 
-  const [documents, tools, knowledgeBaseIds] = await Promise.all([
+  const [documents, tools, knowledgeBaseIds, category] = await Promise.all([
     listDocuments(id),
     listToolsByAgent(id),
     listAgentKnowledgeBaseAssignments(id),
+    agent.category_id ? getCategory(agent.category_id).catch(() => null) : Promise.resolve(null),
   ]);
   const editHref = `/ai-management/agents/${agent.id}/edit`;
   const previewHref = `/ai-management/agents/${agent.id}/preview`;
+  const manageToolsHref = `/ai-management/agents/${agent.id}/tools`;
+  const manageKbHref = `/ai-management/agents/${agent.id}/knowledge`;
   const config = agent.configuration ?? {};
   const configKnowledgeBaseIds = Array.isArray(config.knowledge_base_ids)
     ? config.knowledge_base_ids.filter((kbId): kbId is string => typeof kbId === "string")
     : [];
   const knowledgeBaseCount =
     knowledgeBaseIds.length > 0 ? knowledgeBaseIds.length : configKnowledgeBaseIds.length;
+
+  const model = typeof config.model === "string" ? config.model : null;
+  const temperature = typeof config.temperature === "number" ? config.temperature : null;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -52,15 +59,24 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
           description={agent.description || "No description provided."}
           action={
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/agents" />}>
+                <ArrowLeft className="size-4" />
+                Back to Agents
+              </Button>
               <Button variant="outline" nativeButton={false} render={<Link href={previewHref} />}>
                 <Send className="size-4" />
-                Test Agent
+                Preview Agent
               </Button>
               <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
                 <Edit className="size-4" />
                 Edit Agent
               </Button>
-              <AiAgentDeleteButton id={agent.id} name={agent.name} />
+              <AiAgentDeleteButton
+                id={agent.id}
+                toolsCount={tools.length}
+                knowledgeBaseCount={knowledgeBaseCount}
+                documentsCount={documents.length}
+              />
             </div>
           }
         />
@@ -134,26 +150,67 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
                 <Puzzle className="size-5 text-muted-foreground" />
               </div>
               <div>
-                <CardTitle>Tools & Knowledge</CardTitle>
-                <CardDescription>Resources connected to this agent.</CardDescription>
+                <CardTitle>Configuration Summary</CardTitle>
+                <CardDescription>Overview of this agent&apos;s configuration.</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between border-b pb-3">
-              <span className="text-sm">Tools assigned</span>
+              <span className="text-sm">Category</span>
+              <span className="text-sm font-medium">
+                {category ? (
+                  <Link href={`/ai-management/categories/${category.id}`} className="hover:underline">
+                    {category.name}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">None</span>
+                )}
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-sm">Status</span>
+              <AIStatusBadge status={agent.status} />
+            </div>
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-sm">Instructions</span>
+              <Badge variant={agent.instructions ? "default" : "secondary"}>
+                {agent.instructions ? "Configured" : "Not configured"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-sm">Tools</span>
               <Badge variant={tools.length > 0 ? "default" : "secondary"}>{tools.length}</Badge>
+            </div>
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-sm">Knowledge Bases</span>
+              <Badge variant={knowledgeBaseCount > 0 ? "default" : "secondary"}>{knowledgeBaseCount}</Badge>
             </div>
             <div className="flex items-center justify-between border-b pb-3">
               <span className="text-sm">Documents</span>
               <Badge variant={documents.length > 0 ? "default" : "secondary"}>{documents.length}</Badge>
             </div>
+            <div className="flex items-center justify-between border-b pb-3">
+              <span className="text-sm">Model</span>
+              <span className="text-sm font-medium">{model ?? "Default"}</span>
+            </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm">Knowledge bases</span>
-              <Badge variant={knowledgeBaseCount > 0 ? "default" : "secondary"}>{knowledgeBaseCount}</Badge>
+              <span className="text-sm">Temperature</span>
+              <span className="text-sm font-medium">{temperature ?? "Default"}</span>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={manageToolsHref} />}>
+          <Puzzle className="size-4" />
+          Manage Tools
+        </Button>
+        <Button variant="outline" size="sm" nativeButton={false} render={<Link href={manageKbHref} />}>
+          <BookOpen className="size-4" />
+          Manage Knowledge
+        </Button>
       </div>
 
       <Card>

@@ -16,6 +16,7 @@ type Conversation = {
   agent_id: string;
   agent_name?: string;
   category_name?: string;
+  user_id?: string;
   message_count: number;
   created_at: string;
   updated_at: string;
@@ -92,30 +93,24 @@ export default function ConversationsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-32">ID</TableHead>
-                    <TableHead className="w-40">Agent</TableHead>
+                    <TableHead className="w-32">User</TableHead>
                     <TableHead className="w-32">Category</TableHead>
+                    <TableHead className="w-40">Agent</TableHead>
                     <TableHead className="w-24">Messages</TableHead>
                     <TableHead className="w-40">Date</TableHead>
-                    <TableHead className="w-[1%] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((conv) => (
                     <TableRow key={conv.id}>
-                      <TableCell className="font-mono text-xs">{conv.id.slice(0, 8)}...</TableCell>
-                      <TableCell>{conv.agent_name ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{conv.user_id ?? conv.id.slice(0, 8)}</TableCell>
                       <TableCell>{conv.category_name ?? "—"}</TableCell>
+                      <TableCell>{conv.agent_name ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary">{conv.message_count}</Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(conv.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/ai-management/conversations/${conv.id}`} />}>
-                          View
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

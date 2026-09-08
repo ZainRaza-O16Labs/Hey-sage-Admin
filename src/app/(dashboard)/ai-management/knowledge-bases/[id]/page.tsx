@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Database, Edit, FileText } from "lucide-react";
+import { ArrowLeft, Database, Edit, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,15 @@ import { listKnowledgeBaseDocuments } from "@/lib/ai-management/knowledge-base-d
 import { isUuid } from "@/lib/agents/schema";
 
 type RouteParams = Promise<{ id: string }>;
+
+function mimeTypeLabel(mimeType: string): string {
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType === "text/markdown" || mimeType === "text/x-markdown") return "Markdown";
+  const ext = mimeType.split("/").pop()?.toLowerCase();
+  if (ext === "pdf") return "PDF";
+  if (ext === "md" || ext === "markdown") return "Markdown";
+  return ext ?? "Unknown";
+}
 
 export default async function KnowledgeBaseDetailPage({ params }: { params: RouteParams }) {
   const { id } = await params;
@@ -41,10 +50,16 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
           title={kb.name}
           description={kb.description || "Knowledge base for document management."}
           action={
-            <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
-              <Edit className="size-4" />
-              Edit
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" nativeButton={false} render={<Link href="/ai-management/knowledge-bases" />}>
+                <ArrowLeft className="size-4" />
+                Back to Knowledge Bases
+              </Button>
+              <Button variant="outline" nativeButton={false} render={<Link href={editHref} />}>
+                <Edit className="size-4" />
+                Edit
+              </Button>
+            </div>
           }
         />
       </div>
@@ -66,6 +81,11 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Status</span>
               <AIStatusBadge status={kb.status} />
+            </div>
+            <Separator />
+            <div>
+              <p className="text-sm font-medium">Description</p>
+              <p className="mt-1 text-sm text-muted-foreground">{kb.description || "No description"}</p>
             </div>
             <Separator />
             <div className="grid gap-4 sm:grid-cols-2">
@@ -120,6 +140,44 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
           </div>
         </CardHeader>
         <CardContent>
+          {documents.length > 0 ? (
+            <div className="mb-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+                    <th className="pb-2 pr-4">Name</th>
+                    <th className="pb-2 pr-4">Type</th>
+                    <th className="pb-2 pr-4">Size</th>
+                    <th className="pb-2 pr-4">Status</th>
+                    <th className="pb-2">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.map((doc) => (
+                    <tr key={doc.id} className="border-b last:border-0">
+                      <td className="py-2 pr-4">
+                        <p className="truncate font-medium">{doc.filename}</p>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <Badge variant="outline">{mimeTypeLabel(doc.mime_type)}</Badge>
+                      </td>
+                      <td className="py-2 pr-4 text-muted-foreground">
+                        {doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : "—"}
+                      </td>
+                      <td className="py-2 pr-4">
+                        <Badge variant={doc.status === "ready" ? "default" : doc.status === "error" ? "destructive" : "secondary"}>
+                          {doc.status}
+                        </Badge>
+                      </td>
+                      <td className="py-2 text-muted-foreground">
+                        {new Date(doc.updated_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
           <AiKnowledgeBaseDocumentsPanel
             knowledgeBaseId={id}
             initialDocuments={documents}

@@ -8,12 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AgentsStoreError, getAgentDashboardStats } from "@/lib/agents/store";
-import { listCategories, AiManagementStoreError } from "@/lib/ai-management/store";
+import { listCategories, listTools, DEFAULT_ORGANIZATION_ID } from "@/lib/ai-management/store";
+import { countConversationsSince } from "@/lib/ai-management/conversations-store";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
 export default async function AiDashboardPage() {
   let stats: Awaited<ReturnType<typeof getAgentDashboardStats>> | null = null;
   let categoryCount = 0;
+  let toolsCount = 0;
+  let activeToolsCount = 0;
+  let todayConversationsCount = 0;
   let errorMessage: string | null = null;
 
   if (isSupabaseAdminConfigured()) {
@@ -27,6 +31,23 @@ export default async function AiDashboardPage() {
       categoryCount = categories.length;
     } catch {
       // Categories table may not exist yet
+    }
+    try {
+      const tools = await listTools();
+      toolsCount = tools.length;
+      activeToolsCount = tools.filter((tool) => tool.status === "active").length;
+    } catch {
+      // Tools table may not exist yet
+    }
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      todayConversationsCount = await countConversationsSince(
+        DEFAULT_ORGANIZATION_ID,
+        startOfToday.toISOString(),
+      );
+    } catch {
+      // Conversation tables may not exist yet
     }
   } else {
     errorMessage = "Supabase service role is not configured.";
@@ -72,8 +93,8 @@ export default async function AiDashboardPage() {
             />
             <AIStatsCard
               label="Tools"
-              value="—"
-              description="Not available in current schema"
+              value={toolsCount}
+              description={`${activeToolsCount} active`}
               icon={Puzzle}
             />
             <AIStatsCard
@@ -93,20 +114,20 @@ export default async function AiDashboardPage() {
             />
             <AIStatsCard
               label="Active Tools"
-              value="—"
-              description="Not available in current schema"
+              value={activeToolsCount}
+              description="Enabled and routable"
               icon={Puzzle}
             />
             <AIStatsCard
               label="Today's Conversations"
-              value="—"
-              description="Execution metrics not exposed"
+              value={todayConversationsCount}
+              description="Conversations created today"
               icon={MessageSquareText}
             />
             <AIStatsCard
               label="RAG Searches"
               value="—"
-              description="Not available in current schema"
+              description="No execution telemetry recorded"
               icon={Search}
             />
           </div>

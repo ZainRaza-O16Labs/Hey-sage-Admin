@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { AIConfirmDialog } from "@/components/ai-management/ai-confirm-dialog";
 
-export function AiAgentDeleteButton({ id, name }: { id: string; name: string }) {
+export function AiAgentDeleteButton({
+  id,
+  toolsCount = 0,
+  knowledgeBaseCount = 0,
+  documentsCount = 0,
+}: {
+  id: string;
+  toolsCount?: number;
+  knowledgeBaseCount?: number;
+  documentsCount?: number;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -25,6 +35,8 @@ export function AiAgentDeleteButton({ id, name }: { id: string; name: string }) 
     }
   }
 
+  const description = `Delete Agent? This agent has: ${toolsCount} tools, ${knowledgeBaseCount} knowledge bases, ${documentsCount} documents. Are you sure you want to continue?`;
+
   return (
     <>
       <Button variant="destructive" onClick={() => setOpen(true)}>
@@ -34,7 +46,7 @@ export function AiAgentDeleteButton({ id, name }: { id: string; name: string }) 
         open={open}
         onOpenChange={setOpen}
         title="Delete Agent"
-        description={`Are you sure you want to delete "${name}"? This will also delete associated conversations and knowledge documents. This cannot be undone.`}
+        description={description}
         confirmLabel="Delete"
         onConfirm={() => void handleDelete()}
         loading={deleting}

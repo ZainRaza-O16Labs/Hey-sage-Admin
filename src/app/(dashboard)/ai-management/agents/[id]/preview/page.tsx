@@ -14,6 +14,8 @@ import { isUuid } from "@/lib/agents/schema";
 import {
   listAgentKnowledgeBaseAssignments,
   listToolsByAgent,
+  getCategory,
+  getKnowledgeBase,
 } from "@/lib/ai-management/store";
 
 type RouteParams = Promise<{ id: string }>;
@@ -30,17 +32,22 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
   }
   if (!agent) notFound();
 
-  const [tools, knowledgeBaseIds, documents] = await Promise.all([
+  const [tools, knowledgeBaseIds, documents, category] = await Promise.all([
     listToolsByAgent(id),
     listAgentKnowledgeBaseAssignments(id),
     listDocuments(id),
+    agent.category_id ? getCategory(agent.category_id).catch(() => null) : Promise.resolve(null),
   ]);
   const config = agent.configuration ?? {};
   const configKnowledgeBaseIds = Array.isArray(config.knowledge_base_ids)
     ? config.knowledge_base_ids.filter((kbId): kbId is string => typeof kbId === "string")
     : [];
-  const knowledgeBaseCount =
-    knowledgeBaseIds.length > 0 ? knowledgeBaseIds.length : configKnowledgeBaseIds.length;
+  const resolvedKbIds = knowledgeBaseIds.length > 0 ? knowledgeBaseIds : configKnowledgeBaseIds;
+  const knowledgeBaseCount = resolvedKbIds.length;
+
+  const knowledgeBases = await Promise.all(
+    resolvedKbIds.map((kbId) => getKnowledgeBase(kbId).catch(() => null)),
+  );
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -84,6 +91,17 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
           </div>
           <Separator />
           <div>
+            <p className="text-sm font-medium">Category</p>
+            {category ? (
+              <Link href={`/ai-management/categories/${category.id}`} className="mt-1 inline-block text-sm text-primary hover:underline">
+                {category.name}
+              </Link>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">None</p>
+            )}
+          </div>
+          <Separator />
+          <div>
             <p className="text-sm font-medium">Description</p>
             <p className="mt-1 text-sm text-muted-foreground">{agent.description || "No description"}</p>
           </div>
@@ -96,6 +114,38 @@ export default async function AgentPreviewPage({ params }: { params: RouteParams
               </pre>
             ) : (
               <p className="mt-1 text-sm text-muted-foreground">No instructions configured.</p>
+            )}
+          </div>
+          <Separator />
+          <div>
+            <p className="text-sm font-medium">Tools</p>
+            {tools.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {tools.map((tool) => (
+                  <Badge key={tool.id} variant="secondary">{tool.name}</Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">No tools assigned.</p>
+            )}
+          </div>
+          <Separator />
+          <div>
+            <p className="text-sm font-medium">Knowledge Bases</p>
+            {knowledgeBases.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {knowledgeBases.map((kb) =>
+                  kb ? (
+                    <Badge key={kb.id} variant="secondary">
+                      <Link href={`/ai-management/knowledge-bases/${kb.id}`} className="hover:underline">
+                        {kb.name}
+                      </Link>
+                    </Badge>
+                  ) : null,
+                )}
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">No knowledge bases assigned.</p>
             )}
           </div>
           <Separator />

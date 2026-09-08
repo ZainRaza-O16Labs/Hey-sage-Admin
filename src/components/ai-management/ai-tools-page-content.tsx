@@ -9,7 +9,6 @@ import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AISkeleton } from "@/components/ai-management/ai-skeleton";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AIFilterBar } from "@/components/ai-management/ai-filter-bar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -89,9 +88,7 @@ export function AiToolsPageContent() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-48">Tool</TableHead>
-                    <TableHead className="w-32">Key</TableHead>
                     <TableHead className="w-28">Status</TableHead>
-                    <TableHead className="w-32">Assigned Agents</TableHead>
                     <TableHead className="w-[1%] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -109,13 +106,7 @@ export function AiToolsPageContent() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{tool.key}</code>
-                      </TableCell>
-                      <TableCell>
                         <AIStatusBadge status={tool.status} />
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">0</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/ai-management/tools/${tool.id}`} />}>

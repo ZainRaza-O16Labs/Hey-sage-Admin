@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAgent, listAgents } from "@/lib/agents/store";
+import { getAgentDocumentCounts } from "@/lib/agents/documents";
 import { validateAgentInput } from "@/lib/agents/schema";
 import {
   jsonError,
@@ -13,7 +14,15 @@ export async function GET() {
 
   try {
     const agents = await listAgents();
-    return NextResponse.json({ agents });
+    const documentCounts: Record<string, number> = await getAgentDocumentCounts().catch(
+      () => ({} as Record<string, number>),
+    );
+    return NextResponse.json({
+      agents: agents.map((agent) => ({
+        ...agent,
+        documentCount: documentCounts[agent.id] ?? 0,
+      })),
+    });
   } catch (error) {
     return storeErrorResponse(error);
   }

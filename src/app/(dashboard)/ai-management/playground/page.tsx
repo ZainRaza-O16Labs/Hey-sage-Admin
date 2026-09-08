@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Send, ChevronDown, ChevronRight, Bot, User } from "lucide-react";
+import { Send, ChevronDown, ChevronRight, Bot, User, Info } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Agent } from "@/lib/agents/schema";
+import type { AiCategory } from "@/lib/ai-management/store";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -20,7 +21,9 @@ type DebugStep = {
 };
 
 export default function PlaygroundPage() {
+  const [categories, setCategories] = useState<AiCategory[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -29,11 +32,27 @@ export default function PlaygroundPage() {
   const [debugSteps, setDebugSteps] = useState<DebugStep[]>([]);
 
   useEffect(() => {
+    fetch("/api/ai-management/categories")
+      .then((r) => r.json())
+      .then((data: { categories?: AiCategory[] }) => setCategories(data.categories ?? []))
+      .catch(() => {});
     fetch("/api/agents")
       .then((r) => r.json())
       .then((data: { agents?: Agent[] }) => setAgents(data.agents ?? []))
       .catch(() => {});
   }, []);
+
+  const filteredAgents = selectedCategoryId
+    ? agents.filter((a) => a.category_id === selectedCategoryId)
+    : agents;
+
+  function handleCategoryChange(value: string) {
+    setSelectedCategoryId(value);
+    if (value) {
+      const stillVisible = agents.some((a) => a.id === selectedAgentId && a.category_id === value);
+      if (!stillVisible) setSelectedAgentId("");
+    }
+  }
 
   async function handleSend() {
     if (!input.trim() || !selectedAgentId) return;
@@ -42,9 +61,13 @@ export default function PlaygroundPage() {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setSending(true);
 
+    const selectedAgent = agents.find((a) => a.id === selectedAgentId);
     setDebugSteps([
       { label: "Prompt", detail: userMessage },
-      { label: "AI Router", detail: "Routing request..." },
+      ...(selectedAgent?.category_id
+        ? [{ label: "Category", detail: categories.find((c) => c.id === selectedAgent.category_id)?.name ?? selectedAgent.category_id }]
+        : []),
+      { label: "Agent", detail: selectedAgent?.name ?? selectedAgentId },
     ]);
 
     try {
@@ -63,16 +86,27 @@ export default function PlaygroundPage() {
           { label: "Final Response", detail: reply },
         ]);
       } else {
-        setMessages((prev) => [...prev, { role: "assistant", content: "Playground chat is not available yet. The backend chat API is needed to test agents here." }]);
+        let detail = `Request failed with status ${response.status}.`;
+        try {
+          const payload = (await response.json()) as { error?: string };
+          if (payload.error) detail = payload.error;
+        } catch {
+          // keep the fallback detail
+        }
+        setDebugSteps((prev) => [...prev, { label: "Error", detail }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: detail }]);
       }
-    } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Playground chat is not available yet. The backend chat API is needed to test agents here." }]);
+    } catch (caught) {
+      const detail = caught instanceof Error ? caught.message : "Could not reach the agent runtime.";
+      setDebugSteps((prev) => [...prev, { label: "Error", detail }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: detail }]);
     } finally {
       setSending(false);
     }
   }
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -84,11 +118,28 @@ export default function PlaygroundPage() {
       <Card>
         <CardHeader>
           <CardTitle>Agent Selection</CardTitle>
-          <CardDescription>Choose an agent to chat with in the playground.</CardDescription>
+          <CardDescription>Choose a category and agent to chat with in the playground.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row">
             <div className="flex-1 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Category</label>
+              <NativeSelect
+                value={selectedCategoryId}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                aria-label="Select category"
+                className="w-full"
+              >
+                <option value="">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex-1 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Agent</label>
               <NativeSelect
                 value={selectedAgentId}
                 onChange={(e) => setSelectedAgentId(e.target.value)}
@@ -96,7 +147,7 @@ export default function PlaygroundPage() {
                 className="w-full"
               >
                 <option value="">Select an agent...</option>
-                {agents.map((agent) => (
+                {filteredAgents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
                   </option>
@@ -109,6 +160,7 @@ export default function PlaygroundPage() {
               <p className="font-medium">{selectedAgent.name}</p>
               <p className="text-muted-foreground">{selectedAgent.description || "No description"}</p>
               <p className="mt-1 text-xs text-muted-foreground">
+                {selectedCategory && `Category: ${selectedCategory.name} · `}
                 Status: {selectedAgent.status} · Instructions: {selectedAgent.instructions.length > 0 ? "configured" : "not configured"}
               </p>
             </div>
@@ -190,15 +242,14 @@ export default function PlaygroundPage() {
                   ))
                 )}
               </div>
-              <div className="mt-4 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Execution flow</p>
-                {["Prompt", "AI Router", "Category", "Agent", "Tool", "Tool Result", "RAG", "Retrieved Documents", "Final Response"].map((step) => (
-                  <div key={step} className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="size-1.5 rounded-full bg-muted-foreground/30" />
-                    {step}
-                  </div>
-                ))}
-              </div>
+              {debugSteps.length > 0 && (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-dashed p-2 text-xs text-muted-foreground">
+                  <Info className="size-3.5 shrink-0" />
+                  <span>
+                    Tool calls and RAG retrieval traces are not exposed by the agent runtime, so they are not shown here.
+                  </span>
+                </div>
+              )}
             </CardContent>
           )}
         </Card>

@@ -437,6 +437,57 @@ export async function deleteKnowledgeBase(id: string): Promise<void> {
   if (error) throw storeError(error);
 }
 
+export async function listKnowledgeBaseStats(): Promise<
+  Record<string, AiKnowledgeBaseStats>
+> {
+  const supabase = requireStore();
+  const [{ data: docData, error: docError }, { data: agentData, error: agentError }] =
+    await Promise.all([
+      supabase
+        .from("knowledge_documents")
+        .select("knowledge_base_id, chunk_count, status"),
+      supabase
+        .from("ai_agent_knowledge_bases")
+        .select("knowledge_base_id"),
+    ]);
+  if (docError) throw storeError(docError);
+  if (agentError) throw storeError(agentError);
+
+  const byKb = new Map<
+    string,
+    { documentCount: number; readyDocumentCount: number; chunkCount: number; agentCount: number }
+  >();
+  const ensure = (id: string) => {
+    let entry = byKb.get(id);
+    if (!entry) {
+      entry = { documentCount: 0, readyDocumentCount: 0, chunkCount: 0, agentCount: 0 };
+      byKb.set(id, entry);
+    }
+    return entry;
+  };
+  for (const row of (docData ?? []) as Array<{
+    knowledge_base_id: string | null;
+    chunk_count: number | null;
+    status?: string;
+  }>) {
+    if (!row.knowledge_base_id) continue;
+    const entry = ensure(row.knowledge_base_id);
+    entry.documentCount += 1;
+    if (row.status === "ready") entry.readyDocumentCount += 1;
+    entry.chunkCount += typeof row.chunk_count === "number" ? row.chunk_count : 0;
+  }
+  for (const row of (agentData ?? []) as Array<{ knowledge_base_id: string | null }>) {
+    if (!row.knowledge_base_id) continue;
+    ensure(row.knowledge_base_id).agentCount += 1;
+  }
+
+  const result: Record<string, AiKnowledgeBaseStats> = {};
+  for (const [id, stats] of byKb) {
+    result[id] = stats;
+  }
+  return result;
+}
+
 export async function getKnowledgeBaseStats(
   id: string,
 ): Promise<AiKnowledgeBaseStats> {

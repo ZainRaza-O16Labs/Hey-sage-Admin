@@ -11,15 +11,16 @@ import { AISkeleton } from "@/components/ai-management/ai-skeleton";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AIFilterBar } from "@/components/ai-management/ai-filter-bar";
 import { AIConfirmDialog } from "@/components/ai-management/ai-confirm-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { Agent } from "@/lib/agents/schema";
 import type { AiCategory } from "@/lib/ai-management/store";
 
 export function CategoriesPageContent() {
   const router = useRouter();
   const [categories, setCategories] = useState<AiCategory[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -35,6 +36,19 @@ export function CategoriesPageContent() {
       if (!response.ok) throw new Error("Failed to load categories");
       const data = (await response.json()) as { categories: AiCategory[] };
       setCategories(data.categories ?? []);
+      try {
+        const [agentsRes, kbsRes] = await Promise.all([
+          fetch("/api/agents").catch(() => null),
+          fetch("/api/ai-management/knowledge-bases").catch(() => null),
+        ]);
+        if (agentsRes?.ok) {
+          const d = await agentsRes.json();
+          setAgents(d.agents ?? []);
+        }
+        if (kbsRes?.ok) {
+          await kbsRes.json();
+        }
+      } catch {}
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load categories.");
     } finally {
@@ -132,8 +146,9 @@ export function CategoriesPageContent() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-56">Name</TableHead>
+                    <TableHead className="w-24 text-center">Agents</TableHead>
+                    <TableHead className="w-28 text-center">Knowledge Bases</TableHead>
                     <TableHead className="w-28">Status</TableHead>
-                    <TableHead className="w-40">Updated</TableHead>
                     <TableHead className="w-[1%] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -141,6 +156,24 @@ export function CategoriesPageContent() {
                   {filtered.map((cat) => {
                     const catHref = `/ai-management/categories/${cat.id}`;
                     const editHref = `/ai-management/categories/${cat.id}/edit`;
+                    const agentCount = agents.filter(
+                      (a) =>
+                        a.category_id === cat.id ||
+                        (a.configuration?.category_id && a.configuration.category_id === cat.id),
+                    ).length;
+                    const kbIds = new Set<string>();
+                    agents
+                      .filter(
+                        (a) =>
+                          a.category_id === cat.id ||
+                          (a.configuration?.category_id && a.configuration.category_id === cat.id),
+                      )
+                      .forEach((a) => {
+                        const ids = Array.isArray(a.configuration?.knowledge_base_ids)
+                          ? (a.configuration?.knowledge_base_ids as string[])
+                          : [];
+                        ids.forEach((id) => kbIds.add(id));
+                      });
                     return (
                     <TableRow key={cat.id}>
                       <TableCell className="min-w-0 max-w-xl whitespace-normal">
@@ -153,11 +186,10 @@ export function CategoriesPageContent() {
                           </p>
                         </div>
                       </TableCell>
+                      <TableCell className="text-center">{agentCount}</TableCell>
+                      <TableCell className="text-center">{kbIds.size}</TableCell>
                       <TableCell>
                         <AIStatusBadge status={cat.status} />
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(cat.updated_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">

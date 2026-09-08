@@ -129,6 +129,23 @@ function mapConversation(
   };
 }
 
+export async function countConversationsSince(
+  organizationId: string,
+  sinceIso: string,
+): Promise<number> {
+  const supabase = requireStore();
+  const { count, error } = await supabase
+    .from("conversations")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .gte("created_at", sinceIso);
+  if (error) {
+    if (isMissingRelation(error.message)) throw unsupportedMessages();
+    throw new AiManagementStoreError(error.message);
+  }
+  return count ?? 0;
+}
+
 export async function getConversation(
   organizationId: string,
   id: string,

@@ -138,6 +138,40 @@ export async function deleteDocument(
   }
 }
 
+/**
+ * Per-agent document counts. Mirrors `listDocuments` semantics: an agent sees
+ * its own documents plus any shared documents. Returns agent_id -> count.
+ */
+export async function getAgentDocumentCounts(): Promise<Record<string, number>> {
+  const supabase = requireStore();
+  const { data, error } = await supabase
+    .from("knowledge_documents")
+    .select("agent_id, scope");
+
+  if (error) {
+    throw new AgentsStoreError(error.message);
+  }
+
+  const counts = new Map<string, number>();
+  let shared = 0;
+  for (const row of (data ?? []) as Array<{
+    agent_id: string | null;
+    scope?: string;
+  }>) {
+    if (row.scope === "shared") {
+      shared += 1;
+    } else if (row.agent_id) {
+      counts.set(row.agent_id, (counts.get(row.agent_id) ?? 0) + 1);
+    }
+  }
+
+  const result: Record<string, number> = {};
+  for (const [agentId, count] of counts) {
+    result[agentId] = count + shared;
+  }
+  return result;
+}
+
 export function documentStoragePath(
   ownerKey: string,
   documentId: string,

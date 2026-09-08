@@ -16,8 +16,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AiKnowledgeBase } from "@/lib/ai-management/knowledge-bases";
 
+type AiKnowledgeBaseWithStats = AiKnowledgeBase & {
+  documentCount?: number;
+  readyDocumentCount?: number;
+  chunkCount?: number;
+  agentCount?: number;
+};
+
 export function AiKnowledgeBasesPageContent() {
-  const [kbs, setKbs] = useState<AiKnowledgeBase[]>([]);
+  const [kbs, setKbs] = useState<AiKnowledgeBaseWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -34,7 +41,9 @@ export function AiKnowledgeBasesPageContent() {
         setKbs([]);
         return;
       }
-      const data = (await response.json()) as { knowledgeBases: AiKnowledgeBase[] };
+      const data = (await response.json()) as {
+        knowledgeBases: AiKnowledgeBaseWithStats[];
+      };
       setKbs(data.knowledgeBases ?? []);
     } catch {
       setKbs([]);
@@ -49,6 +58,17 @@ export function AiKnowledgeBasesPageContent() {
     const matchesQuery = `${kb.name} ${kb.description}`.toLowerCase().includes(query.toLowerCase());
     return matchesQuery && (statusFilter === "all" || kb.status === statusFilter);
   });
+
+  function deleteDescription(kb: AiKnowledgeBaseWithStats | null) {
+    if (!kb) return "";
+    const docCount = kb.documentCount ?? 0;
+    const agentCount = kb.agentCount ?? 0;
+    const ragNote =
+      agentCount > 0
+        ? ` It is assigned to ${agentCount} agent${agentCount === 1 ? "" : "s"}, so deleting it may affect RAG responses for those agents.`
+        : "";
+    return `Delete Knowledge Base? This knowledge base contains ${docCount} document${docCount === 1 ? "" : "s"}${ragNote} This cannot be undone. Delete "${kb.name}?"`;
+  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -113,10 +133,9 @@ export function AiKnowledgeBasesPageContent() {
         <Card>
           <CardContent className="py-8">
             <div className="flex flex-col items-center justify-center text-center">
-              <p className="text-sm font-medium">Knowledge bases not yet available</p>
+              <p className="text-sm font-medium">No knowledge bases yet</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Knowledge base management will appear here once the backend schema supports it.
-                Individual agent knowledge documents can be managed through the agent detail page.
+                Create your first knowledge base to organize reusable knowledge and connect it to agents.
               </p>
             </div>
           </CardContent>
@@ -142,8 +161,9 @@ export function AiKnowledgeBasesPageContent() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-56">Name</TableHead>
+                    <TableHead className="w-24 text-center">Documents</TableHead>
+                    <TableHead className="w-24 text-center">Agents</TableHead>
                     <TableHead className="w-28">Status</TableHead>
-                    <TableHead className="w-40">Updated</TableHead>
                     <TableHead className="w-[1%] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -160,10 +180,9 @@ export function AiKnowledgeBasesPageContent() {
                           </p>
                         </div>
                       </TableCell>
+                      <TableCell className="text-center text-sm font-medium">{kb.documentCount ?? 0}</TableCell>
+                      <TableCell className="text-center text-sm font-medium">{kb.agentCount ?? 0}</TableCell>
                       <TableCell><AIStatusBadge status={kb.status} /></TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(kb.updated_at).toLocaleDateString()}
-                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Button size="sm" variant="outline" nativeButton={false} render={<Link href={kbViewHref(kb.id)} />}>
@@ -193,7 +212,7 @@ export function AiKnowledgeBasesPageContent() {
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
         title="Delete Knowledge Base"
-        description={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
+        description={deleteDescription(deleteTarget as AiKnowledgeBaseWithStats | null)}
         confirmLabel="Delete"
         onConfirm={() => void handleDelete()}
         loading={deleting}

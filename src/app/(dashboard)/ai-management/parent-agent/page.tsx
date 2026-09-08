@@ -2,13 +2,17 @@ import { Route } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AiRouterForm } from "@/components/ai-management/ai-router-form";
-import { AiManagementStoreError, getParentAgentConfig } from "@/lib/ai-management/store";
+import { AiManagementStoreError, getParentAgentConfig, listCategories } from "@/lib/ai-management/store";
 
 export default async function AiRouterPage() {
   let config = null;
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
   let errorMessage: string | null = null;
   try {
-    config = await getParentAgentConfig();
+    [config, categories] = await Promise.all([
+      getParentAgentConfig(),
+      listCategories(),
+    ]);
   } catch (error) {
     errorMessage = error instanceof AiManagementStoreError ? error.message : "Could not load AI Router configuration.";
   }
@@ -32,7 +36,7 @@ export default async function AiRouterPage() {
             {errorMessage ? (
               <p className="text-sm text-destructive">{errorMessage}</p>
             ) : (
-              <AiRouterForm initial={config} />
+              <AiRouterForm initial={config} categories={categories} />
             )}
           </CardContent>
         </Card>

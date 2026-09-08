@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import {
   createKnowledgeBase,
   listKnowledgeBases,
+  listKnowledgeBaseStats,
+  type AiKnowledgeBaseStats,
 } from "@/lib/ai-management/store";
 import {
   jsonError,
@@ -14,7 +16,20 @@ export async function GET() {
   if (auth.error) return auth.error;
   try {
     const knowledgeBases = await listKnowledgeBases();
-    return NextResponse.json({ knowledgeBases });
+    const stats: Record<string, AiKnowledgeBaseStats> = await listKnowledgeBaseStats().catch(
+      () => ({} as Record<string, AiKnowledgeBaseStats>),
+    );
+    return NextResponse.json({
+      knowledgeBases: knowledgeBases.map((kb) => ({
+        ...kb,
+        ...(stats[kb.id] ?? {
+          documentCount: 0,
+          readyDocumentCount: 0,
+          chunkCount: 0,
+          agentCount: 0,
+        }),
+      })),
+    });
   } catch (error) {
     return storeErrorResponse(error);
   }

@@ -17,10 +17,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { Agent } from "@/lib/agents/schema";
 import type { AiCategory } from "@/lib/ai-management/store";
 import type { AiTool } from "@/lib/ai-management/tools";
-import type { AiKnowledgeBase } from "@/lib/ai-management/knowledge-bases";
 import { fetchCategories } from "@/lib/ai-management/categories";
 import { fetchTools } from "@/lib/ai-management/tools";
-import { fetchKnowledgeBases } from "@/lib/ai-management/knowledge-bases";
+
+type AgentWithDocumentCount = Agent & { documentCount?: number };
 
 type RuntimeIds = {
   categoryId?: string;
@@ -43,9 +43,8 @@ function runtimeIds(agent: Agent): RuntimeIds {
 
 export function AiAgentsPageContent() {
   const router = useRouter();
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<AgentWithDocumentCount[]>([]);
   const [categories, setCategories] = useState<AiCategory[]>([]);
-  const [knowledgeBases, setKnowledgeBases] = useState<AiKnowledgeBase[]>([]);
   const [tools, setTools] = useState<AiTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +58,6 @@ export function AiAgentsPageContent() {
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
-  const knowledgeBaseNameById = useMemo(
-    () => new Map(knowledgeBases.map((kb) => [kb.id, kb.name])),
-    [knowledgeBases],
-  );
   const toolNameById = useMemo(
     () => new Map(tools.map((tool) => [tool.id, tool.name])),
     [tools],
@@ -74,7 +69,7 @@ export function AiAgentsPageContent() {
     try {
       const response = await fetch("/api/agents");
       if (!response.ok) throw new Error("Failed to load agents");
-      const data = (await response.json()) as { agents: Agent[] };
+      const data = (await response.json()) as { agents: AgentWithDocumentCount[] };
       setAgents(data.agents ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load agents.");
@@ -88,12 +83,10 @@ export function AiAgentsPageContent() {
     let active = true;
     Promise.all([
       fetchCategories().catch(() => [] as AiCategory[]),
-      fetchKnowledgeBases().catch(() => [] as AiKnowledgeBase[]),
       fetchTools().catch(() => [] as AiTool[]),
-    ]).then(([cats, kbs, toolList]) => {
+    ]).then(([cats, toolList]) => {
       if (!active) return;
       setCategories(cats);
-      setKnowledgeBases(kbs);
       setTools(toolList);
     });
     return () => {
@@ -125,23 +118,6 @@ export function AiAgentsPageContent() {
       // Error handled inline
     } finally {
       setDeleting(false);
-    }
-  }
-
-  async function handleToggleStatus(agent: Agent) {
-    const newStatus = agent.status === "active" ? "inactive" : "active";
-    try {
-      const response = await fetch(`/api/agents/${agent.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!response.ok) throw new Error("Could not update status.");
-      const data = (await response.json()) as { agent: Agent };
-      setAgents((prev) => prev.map((a) => (a.id === agent.id ? data.agent : a)));
-      router.refresh();
-    } catch {
-      // Error handled inline
     }
   }
 
@@ -199,11 +175,10 @@ export function AiAgentsPageContent() {
                   <TableRow>
                     <TableHead className="min-w-56">Agent</TableHead>
                     <TableHead className="w-32">Category</TableHead>
-                    <TableHead className="w-28">Knowledge</TableHead>
                     <TableHead className="w-24">Tools</TableHead>
+                    <TableHead className="w-24">KBs</TableHead>
+                    <TableHead className="w-24">Documents</TableHead>
                     <TableHead className="w-36">Status</TableHead>
-                    <TableHead className="w-40">Updated</TableHead>
-                    <TableHead className="w-[1%] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -229,19 +204,6 @@ export function AiAgentsPageContent() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium">{ids.knowledgeBaseIds.length}</span>
-                            {ids.knowledgeBaseIds.length > 0 ? (
-                              <span className="line-clamp-1 max-w-40 text-xs text-muted-foreground">
-                                {ids.knowledgeBaseIds
-                                  .map((id) => knowledgeBaseNameById.get(id))
-                                  .filter(Boolean)
-                                  .join(", ")}
-                              </span>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5">
                             <span className="text-sm font-medium">{ids.toolIds.length}</span>
                             {ids.toolIds.length > 0 ? (
                               <span className="line-clamp-1 max-w-36 text-xs text-muted-foreground">
@@ -253,32 +215,12 @@ export function AiAgentsPageContent() {
                             ) : null}
                           </div>
                         </TableCell>
+                        <TableCell className="text-sm font-medium">{ids.knowledgeBaseIds.length}</TableCell>
+                        <TableCell className="text-sm font-medium">{agent.documentCount ?? 0}</TableCell>
                         <TableCell>
                           <div className="flex flex-col items-start gap-1">
                             <AIStatusBadge status={agent.lifecycle_status} />
                             <AIStatusBadge status={agent.status} />
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(agent.updated_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/ai-management/agents/${agent.id}`} />}>
-                              View
-                            </Button>
-                            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/ai-management/agents/${agent.id}/preview`} />}>
-                              Test
-                            </Button>
-                            <Button size="sm" variant="ghost" nativeButton={false} render={<Link href={`/ai-management/agents/${agent.id}/edit`} />}>
-                              Edit
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => void handleToggleStatus(agent)}>
-                              {agent.status === "active" ? "Deactivate" : "Activate"}
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(agent)}>
-                              Delete
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>

@@ -16,6 +16,7 @@ import {
   Plus,
   Puzzle,
   Search,
+  ShieldCheck,
   XCircle,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
@@ -67,6 +68,8 @@ type FormValue = {
   voiceName: string;
   runtime: AgentRuntimeConfig;
 };
+
+type VoiceErrorCode = "invalid" | "key_missing" | "api_error";
 
 const emptyForm: FormValue = {
   name: "",
@@ -153,39 +156,53 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   const [voiceStatus, setVoiceStatus] = useState<
     | { state: "idle" }
     | { state: "checking" }
-    | { state: "ok"; detail: string }
-    | { state: "error"; detail: string }
+    | { state: "ok"; voiceId: string }
+    | { state: "error"; code: VoiceErrorCode; detail: string }
   >({ state: "idle" });
+  const voiceInputRef = useRef(form.voiceId);
+
+  useEffect(() => {
+    voiceInputRef.current = form.voiceId;
+  }, [form.voiceId]);
+
+  const isVoiceVerified =
+    voiceStatus.state === "ok" &&
+    form.voiceId.trim() !== "" &&
+    voiceStatus.voiceId === form.voiceId.trim();
 
   async function handleValidateVoice() {
-    if (!agentId || !form.voiceId.trim()) {
-      setVoiceStatus({
-        state: "error",
-        detail: "Save the agent first, then add a voice id to validate it.",
-      });
-      return;
-    }
+    const voiceId = form.voiceId.trim();
+    if (!voiceId) return;
+    if (voiceStatus.state === "checking") return;
     setVoiceStatus({ state: "checking" });
     try {
-      const response = await fetch(
-        `/api/ai-management/agents/${agentId}/voice/validate`,
-        { method: "POST" },
-      );
-      const payload = (await response.json()) as {
+      const response = await fetch("/api/ai-management/voices/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
+        code?: VoiceErrorCode;
         detail?: string;
-        error?: string;
-      };
-      if (response.ok && payload.ok) {
-        setVoiceStatus({ state: "ok", detail: "Voice exists on the ElevenLabs account." });
+        voiceId?: string;
+      } | null;
+      const stillCurrent = voiceId === voiceInputRef.current.trim();
+      if (response.ok && payload?.ok && payload.voiceId === voiceId && stillCurrent) {
+        setVoiceStatus({ state: "ok", voiceId });
       } else {
         setVoiceStatus({
           state: "error",
-          detail: payload.detail ?? payload.error ?? "Voice validation failed.",
+          code: payload?.code ?? "invalid",
+          detail: payload?.detail ?? "Voice ID could not be verified.",
         });
       }
     } catch {
-      setVoiceStatus({ state: "error", detail: "Could not reach the validation endpoint." });
+      setVoiceStatus({
+        state: "error",
+        code: "api_error",
+        detail: "Could not reach the validation endpoint. Please try again.",
+      });
     }
   }
 
@@ -292,6 +309,11 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       if (!Number.isFinite(temp) || temp < 0 || temp > 2) {
         next.temperature = "Temperature must be between 0 and 2.";
       }
+      if (!form.voiceId.trim()) {
+        next.voice_id = "Voice ID is required.";
+      } else if (!isVoiceVerified) {
+        next.voice_id = "Voice ID must be verified before continuing.";
+      }
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -314,6 +336,13 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
 
   function goToStep(step: number) {
     if (step === currentStep) return;
+    if (step > currentStep && step > 3 && !isVoiceVerified) {
+      setErrors((cur) => ({
+        ...cur,
+        voice_id: "Verify the Voice ID before moving to the next step.",
+      }));
+      return;
+    }
     const completed = step < currentStep || completedSteps.has(step);
     if (!completed) return;
     setCurrentStep(step);
@@ -332,6 +361,11 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     if (!Number.isFinite(temp) || temp < 0 || temp > 2) {
       next.temperature = "Temperature must be between 0 and 2.";
     }
+    if (!form.voiceId.trim()) {
+      next.voice_id = "Voice ID is required.";
+    } else if (!isVoiceVerified) {
+      next.voice_id = "Voice ID must be verified before saving.";
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -339,6 +373,14 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (currentStep < STEP_COUNT) return;
+    if (!isVoiceVerified) {
+      setCurrentStep(3);
+      setErrors((cur) => ({
+        ...cur,
+        voice_id: "Verify the Voice ID before saving.",
+      }));
+      return;
+    }
     if (!validate()) return;
 
     setPending(true);
@@ -406,7 +448,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     }
   }
 
-  const canSave = !pending;
+  const canSave = !pending && isVoiceVerified;
   const hasNoCategories = categories !== null && categories.length === 0;
 
   const categorySelect = (
@@ -600,31 +642,73 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             <Mic className="size-4 text-muted-foreground" />
             <Label htmlFor="voice_id">Voice ID</Label>
           </div>
-          <Input
-            id="voice_id"
-            name="voice_id"
-            value={form.voiceId}
-            onChange={(e) => {
-              setForm((cur) => ({ ...cur, voiceId: e.target.value }));
-              setVoiceStatus({ state: "idle" });
-            }}
-            placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
-            autoComplete="off"
-          />
-          <p className="text-xs text-muted-foreground">
-            ElevenLabs voice id. Validated against the account key
-            configured in Settings.
-          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              id="voice_id"
+              name="voice_id"
+              value={form.voiceId}
+              onChange={(e) => {
+                setForm((cur) => ({ ...cur, voiceId: e.target.value }));
+                setVoiceStatus({ state: "idle" });
+              }}
+              placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+              autoComplete="off"
+              aria-invalid={Boolean(errors.voice_id)}
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleValidateVoice()}
+              disabled={
+                voiceStatus.state === "checking" || !form.voiceId.trim()
+              }
+              className="shrink-0"
+            >
+              {voiceStatus.state === "checking" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : isVoiceVerified ? (
+                <CheckCircle2 className="size-4" />
+              ) : (
+                <ShieldCheck className="size-4" />
+              )}
+              {voiceStatus.state === "checking"
+                ? "Verifying..."
+                : isVoiceVerified
+                  ? "Verified"
+                  : "Verify Voice ID"}
+            </Button>
+          </div>
           {voiceStatus.state === "ok" && (
             <p className="flex items-center gap-1.5 text-sm text-emerald-600">
               <CheckCircle2 className="size-4" />
-              {voiceStatus.detail}
+              Voice ID Verified
             </p>
           )}
           {voiceStatus.state === "error" && (
             <p className="flex items-center gap-1.5 text-sm text-destructive">
               <XCircle className="size-4" />
               {voiceStatus.detail}
+            </p>
+          )}
+          {voiceStatus.state === "checking" && (
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Verifying Voice ID against ElevenLabs...
+            </p>
+          )}
+          {voiceStatus.state === "idle" &&
+            !errors.voice_id &&
+            form.voiceId.trim() !== "" && (
+              <p className="text-xs text-muted-foreground">
+                Click &quot;Verify Voice ID&quot; so the ID is validated
+                against ElevenLabs before continuing.
+              </p>
+            )}
+          {errors.voice_id && (
+            <p className="text-sm text-destructive">
+              {errors.voice_id}
             </p>
           )}
         </div>
@@ -640,25 +724,6 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             }
             placeholder="Optional display name"
           />
-          <div className="pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void handleValidateVoice()}
-              disabled={
-                voiceStatus.state === "checking" ||
-                !form.voiceId.trim()
-              }
-            >
-              {voiceStatus.state === "checking" ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="size-4" />
-              )}
-              Validate Voice
-            </Button>
-          </div>
         </div>
       </div>
     </>
@@ -1155,8 +1220,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                 </AiMessageBanner>
               )}
 
-              <div className="flex flex-wrap items-center gap-2 border-t pt-5">
-                <div className="flex flex-1 flex-wrap items-center gap-2">
+              <div className="flex items-center justify-between gap-2 border-t pt-5">
+                <div>
                   {currentStep > 1 && (
                     <Button
                       type="button"
@@ -1168,11 +1233,13 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                       Previous
                     </Button>
                   )}
+                </div>
+                <div>
                   {!isLastStep ? (
                     <Button
                       type="button"
                       onClick={handleNext}
-                      disabled={pending}
+                      disabled={pending || (currentStep === 3 && !isVoiceVerified)}
                     >
                       Next
                       <ArrowRight className="size-4" />
@@ -1183,23 +1250,6 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                     </Button>
                   )}
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  nativeButton={false}
-                  render={
-                    <Link
-                      href={
-                        isEdit && agentId
-                          ? `/ai-management/agents/${agentId}`
-                          : "/ai-management/agents"
-                      }
-                    />
-                  }
-                  disabled={pending}
-                >
-                  Cancel
-                </Button>
               </div>
             </form>
           </CardContent>
