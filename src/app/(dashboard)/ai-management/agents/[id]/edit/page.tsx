@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AiAgentEditPage } from "@/components/ai-management/ai-agent-edit-page";
 import { getAgent } from "@/lib/agents/store";
+import { listAgentVoices } from "@/lib/agents/voices";
 import { isUuid } from "@/lib/agents/schema";
 
 type RouteParams = Promise<{ id: string }>;
@@ -17,5 +18,6 @@ export default async function EditAgentPage({ params }: { params: RouteParams })
   }
   if (!agent) notFound();
 
-  return <AiAgentEditPage agent={agent} />;
+  const voices = await listAgentVoices(id).catch(() => []);
+  return <AiAgentEditPage agent={{ ...agent, voices }} />;
 }

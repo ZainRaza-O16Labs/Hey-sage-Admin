@@ -133,6 +133,7 @@ export async function createAgent(input: AgentInput): Promise<Agent> {
 export async function updateAgent(id: string, patch: AgentPatch): Promise<Agent> {
   const supabase = requireStore();
   const payload: Record<string, unknown> = { ...patch };
+  delete payload.voices;
   if ("instructions" in patch) {
     payload.instructions_status = "ready";
     payload.instructions_error = null;

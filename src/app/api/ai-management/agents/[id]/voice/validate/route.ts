@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAgent } from "@/lib/agents/store";
 import { getElevenLabsApiKey } from "@/lib/ai-management/store";
 import { isUuid } from "@/lib/agents/schema";
+import { getDefaultAgentVoice } from "@/lib/agents/voices";
 import {
   jsonError,
   requireApiUser,
@@ -13,8 +14,8 @@ type RouteContext = {
 };
 
 /**
- * Validates that a voice id exists on the active ElevenLabs account. The voice
- * id is never exposed — only whether it is valid on the configured account.
+ * Validates that the agent's default voice id exists on the active ElevenLabs
+ * account. The voice id is never exposed beyond confirmation.
  */
 export async function POST(_request: Request, context: RouteContext) {
   const auth = await requireApiUser();
@@ -26,7 +27,9 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const agent = await getAgent(id);
     if (!agent) return jsonError("Agent not found.", 404);
-    const voiceId = agent.voice_id?.trim() ?? "";
+    const defaultVoice = await getDefaultAgentVoice(id);
+    const voiceId =
+      defaultVoice?.voice_id?.trim() || agent.voice_id?.trim() || "";
     if (!voiceId) {
       return jsonError("This agent has no voice id set.", 400);
     }

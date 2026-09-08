@@ -7,16 +7,11 @@ import {
   ArrowRight,
   BookOpen,
   Check,
-  CheckCircle2,
   Database,
   ListChecks,
-  Loader2,
-  Mic,
   Plus,
   Puzzle,
   Search,
-  ShieldCheck,
-  XCircle,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { BackNav } from "@/components/ai-management/back-nav";
@@ -25,6 +20,11 @@ import { AIEmptyState } from "@/components/ai-management/ai-empty-state";
 import { AIErrorState } from "@/components/ai-management/ai-error-state";
 import { AIFormSkeleton } from "@/components/ai-management/ai-skeleton";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
+import {
+  AgentVoicesEditor,
+  createEmptyVoiceRow,
+  type AgentVoiceRow,
+} from "@/components/ai-management/agent-voices-editor";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -64,12 +64,8 @@ type FormValue = {
   instructions: string;
   status: AgentInput["status"];
   lifecycle: AgentInput["lifecycle_status"];
-  voiceId: string;
-  voiceName: string;
   runtime: AgentRuntimeConfig;
 };
-
-type VoiceErrorCode = "invalid" | "key_missing" | "api_error";
 
 const emptyForm: FormValue = {
   name: "",
@@ -77,10 +73,35 @@ const emptyForm: FormValue = {
   instructions: "",
   status: "active",
   lifecycle: "draft",
-  voiceId: "",
-  voiceName: "",
   runtime: defaultRuntimeConfig(),
 };
+
+function initialVoiceRows(agent?: Agent): AgentVoiceRow[] {
+  const voices = agent?.voices;
+  if (voices && voices.length > 0) {
+    return voices.map((voice) => ({
+      localId: voice.id,
+      voiceId: voice.voice_id,
+      voiceName: voice.voice_name ?? "",
+      isDefault: voice.is_default,
+      status: voice.verified
+        ? ({ state: "ok" } as const)
+        : ({ state: "idle" } as const),
+    }));
+  }
+  if (agent?.voice_id) {
+    return [
+      {
+        localId: `legacy-${agent.id}`,
+        voiceId: agent.voice_id,
+        voiceName: agent.voice_name ?? "",
+        isDefault: true,
+        status: { state: "ok" },
+      },
+    ];
+  }
+  return [createEmptyVoiceRow(true)];
+}
 
 const STEPS = [
   "General",
@@ -105,8 +126,6 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           instructions: agent.instructions,
           status: agent.status,
           lifecycle: agent.lifecycle_status,
-          voiceId: agent.voice_id ?? "",
-          voiceName: agent.voice_name ?? "",
           runtime: {
             ...runtimeConfigFromConfiguration(agent.configuration),
             category_id: agent.category_id ?? "",
@@ -114,6 +133,15 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
         }
       : emptyForm,
   );
+
+  const [voiceRows, setVoiceRows] = useState<AgentVoiceRow[]>(() =>
+    initialVoiceRows(agent),
+  );
+  const voiceRowsRef = useRef(voiceRows);
+
+  useEffect(() => {
+    voiceRowsRef.current = voiceRows;
+  }, [voiceRows]);
 
   const [errors, setErrors] = useState<
     FieldErrors & {
@@ -153,28 +181,56 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   const [pending, setPending] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [voiceStatus, setVoiceStatus] = useState<
-    | { state: "idle" }
-    | { state: "checking" }
-    | { state: "ok"; voiceId: string }
-    | { state: "error"; code: VoiceErrorCode; detail: string }
-  >({ state: "idle" });
-  const voiceInputRef = useRef(form.voiceId);
 
-  useEffect(() => {
-    voiceInputRef.current = form.voiceId;
-  }, [form.voiceId]);
+  const filledVoiceRows = voiceRows.filter((row) => row.voiceId.trim());
+  const allFilledVoicesVerified =
+    filledVoiceRows.length > 0 &&
+    filledVoiceRows.every((row) => row.status.state === "ok");
+  const hasDuplicateVoiceIds = (() => {
+    const seen = new Set<string>();
+    for (const row of filledVoiceRows) {
+      const key = row.voiceId.trim().toLowerCase();
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  })();
+  const defaultVerifiedVoice =
+    filledVoiceRows.find(
+      (row) => row.isDefault && row.status.state === "ok",
+    ) ?? filledVoiceRows.find((row) => row.status.state === "ok");
 
-  const isVoiceVerified =
-    voiceStatus.state === "ok" &&
-    form.voiceId.trim() !== "" &&
-    voiceStatus.voiceId === form.voiceId.trim();
+  function validateVoices(): string | null {
+    if (filledVoiceRows.length === 0) {
+      return "Add and verify at least one Voice ID.";
+    }
+    if (hasDuplicateVoiceIds) {
+      return "Duplicate Voice IDs are not allowed on the same agent.";
+    }
+    if (!allFilledVoicesVerified) {
+      return "Every Voice ID must be verified before continuing.";
+    }
+    if (!defaultVerifiedVoice) {
+      return "Select a verified default voice.";
+    }
+    return null;
+  }
 
-  async function handleValidateVoice() {
-    const voiceId = form.voiceId.trim();
+  async function handleValidateVoice(localId: string) {
+    const row = voiceRowsRef.current.find((item) => item.localId === localId);
+    if (!row) return;
+    const voiceId = row.voiceId.trim();
     if (!voiceId) return;
-    if (voiceStatus.state === "checking") return;
-    setVoiceStatus({ state: "checking" });
+    if (row.status.state === "checking") return;
+
+    setVoiceRows((current) =>
+      current.map((item) =>
+        item.localId === localId
+          ? { ...item, status: { state: "checking" } }
+          : item,
+      ),
+    );
+
     try {
       const response = await fetch("/api/ai-management/voices/validate", {
         method: "POST",
@@ -183,26 +239,75 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       });
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
-        code?: VoiceErrorCode;
         detail?: string;
         voiceId?: string;
       } | null;
-      const stillCurrent = voiceId === voiceInputRef.current.trim();
-      if (response.ok && payload?.ok && payload.voiceId === voiceId && stillCurrent) {
-        setVoiceStatus({ state: "ok", voiceId });
-      } else {
-        setVoiceStatus({
-          state: "error",
-          code: payload?.code ?? "invalid",
-          detail: payload?.detail ?? "Voice ID could not be verified.",
+      const stillCurrent = voiceRowsRef.current.find(
+        (item) => item.localId === localId && item.voiceId.trim() === voiceId,
+      );
+      if (!stillCurrent) return;
+
+      if (response.ok && payload?.ok && payload.voiceId === voiceId) {
+        setVoiceRows((current) => {
+          const next = current.map((item) =>
+            item.localId === localId
+              ? { ...item, status: { state: "ok" as const } }
+              : item,
+          );
+          const verified = next.filter(
+            (item) => item.voiceId.trim() && item.status.state === "ok",
+          );
+          if (verified.length === 1) {
+            return next.map((item) => ({
+              ...item,
+              isDefault: item.localId === verified[0]!.localId,
+            }));
+          }
+          if (!next.some((item) => item.isDefault && item.status.state === "ok")) {
+            const fallback = verified[0];
+            if (fallback) {
+              return next.map((item) => ({
+                ...item,
+                isDefault: item.localId === fallback.localId,
+              }));
+            }
+          }
+          return next;
         });
+      } else {
+        setVoiceRows((current) =>
+          current.map((item) =>
+            item.localId === localId
+              ? {
+                  ...item,
+                  status: {
+                    state: "error",
+                    detail: payload?.detail ?? "Voice ID could not be verified.",
+                  },
+                }
+              : item,
+          ),
+        );
       }
     } catch {
-      setVoiceStatus({
-        state: "error",
-        code: "api_error",
-        detail: "Could not reach the validation endpoint. Please try again.",
-      });
+      const stillCurrent = voiceRowsRef.current.find(
+        (item) => item.localId === localId && item.voiceId.trim() === voiceId,
+      );
+      if (!stillCurrent) return;
+      setVoiceRows((current) =>
+        current.map((item) =>
+          item.localId === localId
+            ? {
+                ...item,
+                status: {
+                  state: "error",
+                  detail:
+                    "Could not reach the validation endpoint. Please try again.",
+                },
+              }
+            : item,
+        ),
+      );
     }
   }
 
@@ -309,11 +414,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       if (!Number.isFinite(temp) || temp < 0 || temp > 2) {
         next.temperature = "Temperature must be between 0 and 2.";
       }
-      if (!form.voiceId.trim()) {
-        next.voice_id = "Voice ID is required.";
-      } else if (!isVoiceVerified) {
-        next.voice_id = "Voice ID must be verified before continuing.";
-      }
+      const voiceError = validateVoices();
+      if (voiceError) next.voice_id = voiceError;
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -336,10 +438,10 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
 
   function goToStep(step: number) {
     if (step === currentStep) return;
-    if (step > currentStep && step > 3 && !isVoiceVerified) {
+    if (step > currentStep && step > 3 && !allFilledVoicesVerified) {
       setErrors((cur) => ({
         ...cur,
-        voice_id: "Verify the Voice ID before moving to the next step.",
+        voice_id: "Verify all Voice IDs before moving to the next step.",
       }));
       return;
     }
@@ -361,11 +463,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     if (!Number.isFinite(temp) || temp < 0 || temp > 2) {
       next.temperature = "Temperature must be between 0 and 2.";
     }
-    if (!form.voiceId.trim()) {
-      next.voice_id = "Voice ID is required.";
-    } else if (!isVoiceVerified) {
-      next.voice_id = "Voice ID must be verified before saving.";
-    }
+    const voiceError = validateVoices();
+    if (voiceError) next.voice_id = voiceError;
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -373,11 +472,12 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (currentStep < STEP_COUNT) return;
-    if (!isVoiceVerified) {
+    const voiceError = validateVoices();
+    if (voiceError) {
       setCurrentStep(3);
       setErrors((cur) => ({
         ...cur,
-        voice_id: "Verify the Voice ID before saving.",
+        voice_id: voiceError,
       }));
       return;
     }
@@ -387,6 +487,22 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     setSuccessMessage(null);
     setErrorMessage(null);
 
+    const voicesPayload = filledVoiceRows.map((row) => ({
+      voice_id: row.voiceId.trim(),
+      voice_name: row.voiceName.trim() || null,
+      verified: true as const,
+      is_default:
+        row.localId === defaultVerifiedVoice?.localId ||
+        (defaultVerifiedVoice == null && row.isDefault),
+    }));
+    // Ensure exactly one default
+    if (!voicesPayload.some((voice) => voice.is_default) && voicesPayload[0]) {
+      voicesPayload[0].is_default = true;
+    }
+
+    const defaultVoice =
+      voicesPayload.find((voice) => voice.is_default) ?? voicesPayload[0]!;
+
     const payload: AgentInput = {
       name: form.name,
       description: form.description,
@@ -394,8 +510,9 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       status: form.status,
       lifecycle_status: form.lifecycle,
       category_id: form.runtime.category_id ? form.runtime.category_id : null,
-      voice_id: form.voiceId.trim() || null,
-      voice_name: form.voiceName.trim() || null,
+      voice_id: defaultVoice.voice_id,
+      voice_name: defaultVoice.voice_name,
+      voices: voicesPayload,
       configuration: {
         ...(agent?.configuration ?? {}),
         ...{
@@ -448,7 +565,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     }
   }
 
-  const canSave = !pending && isVoiceVerified;
+  const canSave = !pending && allFilledVoicesVerified && !hasDuplicateVoiceIds;
   const hasNoCategories = categories !== null && categories.length === 0;
 
   const categorySelect = (
@@ -636,96 +753,22 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Mic className="size-4 text-muted-foreground" />
-            <Label htmlFor="voice_id">Voice ID</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              id="voice_id"
-              name="voice_id"
-              value={form.voiceId}
-              onChange={(e) => {
-                setForm((cur) => ({ ...cur, voiceId: e.target.value }));
-                setVoiceStatus({ state: "idle" });
-              }}
-              placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
-              autoComplete="off"
-              aria-invalid={Boolean(errors.voice_id)}
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void handleValidateVoice()}
-              disabled={
-                voiceStatus.state === "checking" || !form.voiceId.trim()
-              }
-              className="shrink-0"
-            >
-              {voiceStatus.state === "checking" ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : isVoiceVerified ? (
-                <CheckCircle2 className="size-4" />
-              ) : (
-                <ShieldCheck className="size-4" />
-              )}
-              {voiceStatus.state === "checking"
-                ? "Verifying..."
-                : isVoiceVerified
-                  ? "Verified"
-                  : "Verify Voice ID"}
-            </Button>
-          </div>
-          {voiceStatus.state === "ok" && (
-            <p className="flex items-center gap-1.5 text-sm text-emerald-600">
-              <CheckCircle2 className="size-4" />
-              Voice ID Verified
-            </p>
-          )}
-          {voiceStatus.state === "error" && (
-            <p className="flex items-center gap-1.5 text-sm text-destructive">
-              <XCircle className="size-4" />
-              {voiceStatus.detail}
-            </p>
-          )}
-          {voiceStatus.state === "checking" && (
-            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Verifying Voice ID against ElevenLabs...
-            </p>
-          )}
-          {voiceStatus.state === "idle" &&
-            !errors.voice_id &&
-            form.voiceId.trim() !== "" && (
-              <p className="text-xs text-muted-foreground">
-                Click &quot;Verify Voice ID&quot; so the ID is validated
-                against ElevenLabs before continuing.
-              </p>
-            )}
-          {errors.voice_id && (
-            <p className="text-sm text-destructive">
-              {errors.voice_id}
-            </p>
-          )}
-        </div>
+      <Separator />
 
-        <div className="space-y-2">
-          <Label htmlFor="voice_name">Voice Name</Label>
-          <Input
-            id="voice_name"
-            name="voice_name"
-            value={form.voiceName}
-            onChange={(e) =>
-              setForm((cur) => ({ ...cur, voiceName: e.target.value }))
-            }
-            placeholder="Optional display name"
-          />
-        </div>
-      </div>
+      <AgentVoicesEditor
+        rows={voiceRows}
+        onChange={(rows) => {
+          setVoiceRows(rows);
+          setErrors((cur) => {
+            if (!cur.voice_id) return cur;
+            const next = { ...cur };
+            delete next.voice_id;
+            return next;
+          });
+        }}
+        onVerify={(localId) => void handleValidateVoice(localId)}
+        error={errors.voice_id}
+      />
     </>
   );
 
@@ -1229,7 +1272,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                     <Button
                       type="button"
                       onClick={handleNext}
-                      disabled={pending || (currentStep === 3 && !isVoiceVerified)}
+                      disabled={pending || (currentStep === 3 && !allFilledVoicesVerified)}
                     >
                       Next
                       <ArrowRight className="size-4" />

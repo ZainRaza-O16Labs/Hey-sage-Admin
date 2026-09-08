@@ -39,9 +39,28 @@ export type Agent = {
   category_id: string | null;
   voice_id: string | null;
   voice_name: string | null;
+  voices?: AgentVoice[];
   configuration: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+export type AgentVoice = {
+  id: string;
+  agent_id: string;
+  voice_id: string;
+  voice_name: string | null;
+  verified: boolean;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentVoiceInput = {
+  voice_id: string;
+  voice_name?: string | null;
+  verified: boolean;
+  is_default: boolean;
 };
 
 export type AgentInput = {
@@ -53,6 +72,7 @@ export type AgentInput = {
   category_id?: string | null;
   voice_id?: string | null;
   voice_name?: string | null;
+  voices?: AgentVoiceInput[];
   configuration?: Record<string, unknown>;
 };
 
@@ -159,6 +179,27 @@ export function validateAgentInput(body: unknown): ValidationResult {
         ? source.category_id.trim()
         : null;
   }
+  if ("voice_id" in source) {
+    data.voice_id =
+      typeof source.voice_id === "string" ? source.voice_id.trim() || null : null;
+  }
+  if ("voice_name" in source) {
+    data.voice_name =
+      typeof source.voice_name === "string" ? source.voice_name.trim() || null : null;
+  }
+  if ("voices" in source) {
+    const parsedVoices = parseAgentVoiceInputs(source.voices);
+    if (!parsedVoices.ok) {
+      return { ok: false, errors: { voice_id: parsedVoices.error } };
+    }
+    data.voices = parsedVoices.data;
+    const defaultVoice =
+      parsedVoices.data.find((voice) => voice.is_default) ?? parsedVoices.data[0];
+    if (defaultVoice) {
+      data.voice_id = defaultVoice.voice_id;
+      data.voice_name = defaultVoice.voice_name;
+    }
+  }
 
   const errors = collectErrors(data);
   if (!data.instructions.trim()) {
@@ -168,6 +209,65 @@ export function validateAgentInput(body: unknown): ValidationResult {
     return { ok: false, errors };
   }
   return { ok: true, data };
+}
+
+function parseAgentVoiceInputs(
+  value: unknown,
+): { ok: true; data: AgentVoiceInput[] } | { ok: false; error: string } {
+  if (!Array.isArray(value)) {
+    return { ok: false, error: "Voices must be an array." };
+  }
+  const seen = new Set<string>();
+  const voices: AgentVoiceInput[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") {
+      return { ok: false, error: "Invalid voice entry." };
+    }
+    const source = item as Record<string, unknown>;
+    const voiceId = readString(source.voice_id);
+    if (!voiceId) continue;
+    const key = voiceId.toLowerCase();
+    if (seen.has(key)) {
+      return {
+        ok: false,
+        error: `Duplicate Voice ID "${voiceId}" is not allowed on the same agent.`,
+      };
+    }
+    seen.add(key);
+    if (source.verified !== true) {
+      return { ok: false, error: "Every voice must be verified before saving." };
+    }
+    voices.push({
+      voice_id: voiceId,
+      voice_name:
+        typeof source.voice_name === "string"
+          ? source.voice_name.trim() || null
+          : null,
+      verified: true,
+      is_default: source.is_default === true,
+    });
+  }
+  if (voices.length === 0) {
+    return { ok: false, error: "At least one verified voice is required." };
+  }
+  if (!voices.some((voice) => voice.is_default)) {
+    voices[0]!.is_default = true;
+  }
+  return { ok: true, data: voices };
+}
+
+export function mapAgentVoiceRow(row: Record<string, unknown>): AgentVoice {
+  return {
+    id: String(row.id),
+    agent_id: String(row.agent_id),
+    voice_id: String(row.voice_id ?? "").trim(),
+    voice_name:
+      typeof row.voice_name === "string" ? row.voice_name.trim() || null : null,
+    verified: row.verified === true,
+    is_default: row.is_default === true,
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
 }
 
 export function validateAgentPatch(body: unknown): PatchValidationResult {
@@ -192,6 +292,19 @@ export function validateAgentPatch(body: unknown): PatchValidationResult {
   }
   if ("voice_name" in source) {
     data.voice_name = typeof source.voice_name === "string" ? source.voice_name.trim() || null : null;
+  }
+  if ("voices" in source) {
+    const parsedVoices = parseAgentVoiceInputs(source.voices);
+    if (!parsedVoices.ok) {
+      return { ok: false, errors: { voice_id: parsedVoices.error } };
+    }
+    data.voices = parsedVoices.data;
+    const defaultVoice =
+      parsedVoices.data.find((voice) => voice.is_default) ?? parsedVoices.data[0];
+    if (defaultVoice) {
+      data.voice_id = defaultVoice.voice_id;
+      data.voice_name = defaultVoice.voice_name;
+    }
   }
   if ("category_id" in source) {
     data.category_id =

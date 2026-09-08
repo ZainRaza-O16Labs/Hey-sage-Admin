@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteAgent, getAgent, updateAgent } from "@/lib/agents/store";
 import { isUuid, validateAgentPatch } from "@/lib/agents/schema";
+import { listAgentVoices, replaceAgentVoices } from "@/lib/agents/voices";
 import { syncAgentAssignments } from "@/lib/ai-management/store";
 import {
   jsonError,
@@ -26,7 +27,8 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!agent) {
       return jsonError("Agent not found.", 404);
     }
-    return NextResponse.json({ agent });
+    const voices = await listAgentVoices(id);
+    return NextResponse.json({ agent: { ...agent, voices } });
   } catch (error) {
     return storeErrorResponse(error);
   }
@@ -73,7 +75,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    return NextResponse.json({ agent });
+    let voices = await listAgentVoices(id);
+    if (parsed.data.voices) {
+      voices = await replaceAgentVoices(id, parsed.data.voices);
+    }
+
+    return NextResponse.json({ agent: { ...agent, voices } });
   } catch (error) {
     return storeErrorResponse(error);
   }

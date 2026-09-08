@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAgent, listAgents } from "@/lib/agents/store";
 import { getAgentDocumentCounts } from "@/lib/agents/documents";
 import { validateAgentInput } from "@/lib/agents/schema";
+import { listAgentVoices, replaceAgentVoices } from "@/lib/agents/voices";
 import {
   jsonError,
   requireApiUser,
@@ -46,7 +47,22 @@ export async function POST(request: Request) {
 
   try {
     const agent = await createAgent(parsed.data);
-    return NextResponse.json({ agent }, { status: 201 });
+    let voices = [] as Awaited<ReturnType<typeof listAgentVoices>>;
+    if (parsed.data.voices?.length) {
+      voices = await replaceAgentVoices(agent.id, parsed.data.voices);
+    } else if (parsed.data.voice_id) {
+      voices = await replaceAgentVoices(agent.id, [
+        {
+          voice_id: parsed.data.voice_id,
+          voice_name: parsed.data.voice_name ?? null,
+          verified: true,
+          is_default: true,
+        },
+      ]);
+    } else {
+      voices = await listAgentVoices(agent.id);
+    }
+    return NextResponse.json({ agent: { ...agent, voices } }, { status: 201 });
   } catch (error) {
     return storeErrorResponse(error);
   }

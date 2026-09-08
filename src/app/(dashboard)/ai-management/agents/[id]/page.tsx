@@ -10,6 +10,7 @@ import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatusBadge } from "@/components/ai-management/ai-status-badge";
 import { AiAgentDeleteButton } from "@/components/ai-management/ai-agent-delete-button";
 import { getAgent } from "@/lib/agents/store";
+import { listAgentVoices } from "@/lib/agents/voices";
 import { listDocuments } from "@/lib/agents/documents";
 import { isUuid } from "@/lib/agents/schema";
 import {
@@ -32,11 +33,12 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
   }
   if (!agent) notFound();
 
-  const [documents, tools, knowledgeBaseIds, category] = await Promise.all([
+  const [documents, tools, knowledgeBaseIds, category, voices] = await Promise.all([
     listDocuments(id),
     listToolsByAgent(id),
     listAgentKnowledgeBaseAssignments(id),
     agent.category_id ? getCategory(agent.category_id).catch(() => null) : Promise.resolve(null),
+    listAgentVoices(id).catch(() => []),
   ]);
   const editHref = `/ai-management/agents/${agent.id}/edit`;
   const previewHref = `/ai-management/agents/${agent.id}/preview`;
@@ -192,9 +194,43 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
               <span className="text-sm">Model</span>
               <span className="text-sm font-medium">{model ?? "Default"}</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between border-b pb-3">
               <span className="text-sm">Temperature</span>
               <span className="text-sm font-medium">{temperature ?? "Default"}</span>
+            </div>
+            <div className="space-y-2 pt-1">
+              <span className="text-sm">Voices</span>
+              {voices.length === 0 && !agent.voice_id ? (
+                <p className="text-sm text-muted-foreground">No voices configured</p>
+              ) : (
+                <ul className="space-y-1">
+                  {(voices.length > 0
+                    ? voices
+                    : [
+                        {
+                          id: "legacy",
+                          voice_id: agent.voice_id!,
+                          voice_name: agent.voice_name,
+                          is_default: true,
+                          verified: true,
+                        },
+                      ]
+                  ).map((voice) => (
+                    <li
+                      key={voice.id}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="truncate font-medium">
+                        {voice.voice_name || voice.voice_id}
+                        {voice.is_default ? " (default)" : ""}
+                      </span>
+                      <Badge variant={voice.verified ? "default" : "secondary"}>
+                        {voice.verified ? "Verified" : "Unverified"}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </CardContent>
         </Card>

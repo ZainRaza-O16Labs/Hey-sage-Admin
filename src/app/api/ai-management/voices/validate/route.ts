@@ -40,6 +40,22 @@ export async function POST(request: Request) {
       if (response.ok) {
         return NextResponse.json({ ok: true, voiceId });
       }
+      if (response.status === 401 || response.status === 403) {
+        const detail = (await response.json().catch(() => null)) as {
+          detail?: { message?: string } | string;
+        } | null;
+        const message =
+          typeof detail?.detail === "string"
+            ? detail.detail
+            : detail?.detail?.message;
+        return NextResponse.json({
+          ok: false,
+          code: "invalid",
+          detail:
+            message ??
+            "ElevenLabs rejected this API key (check voices_read permission).",
+        });
+      }
       return NextResponse.json({
         ok: false,
         code: "invalid",
