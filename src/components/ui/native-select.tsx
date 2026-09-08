@@ -116,7 +116,7 @@ function NativeSelect({
       <SelectPrimitive.Portal>
         <SelectPrimitive.Positioner
           side="bottom"
-          sideOffset={4}
+          sideOffset={8}
           className="z-[60]"
         >
           <SelectPrimitive.Popup
