@@ -1,13 +1,30 @@
 import { Badge } from "@/components/ui/badge";
 
-type StatusVariant = "active" | "inactive" | "processing" | "indexed" | "failed" | "ready" | "pending" | "error" | "draft" | "unpublished" | "published";
+type StatusVariant =
+  | "active"
+  | "inactive"
+  | "uploading"
+  | "processing"
+  | "indexed"
+  | "failed"
+  | "ready"
+  | "pending"
+  | "error"
+  | "draft"
+  | "unpublished"
+  | "published";
 
-const statusConfig: Record<StatusVariant, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const statusConfig: Record<
+  StatusVariant,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
   active: { label: "Active", variant: "default" },
   inactive: { label: "Inactive", variant: "secondary" },
+  uploading: { label: "Uploading", variant: "secondary" },
   processing: { label: "Processing", variant: "secondary" },
   indexed: { label: "Indexed", variant: "default" },
   failed: { label: "Failed", variant: "destructive" },
+  // instructions_status / non-document statuses
   ready: { label: "Ready", variant: "default" },
   pending: { label: "Pending", variant: "secondary" },
   error: { label: "Error", variant: "destructive" },

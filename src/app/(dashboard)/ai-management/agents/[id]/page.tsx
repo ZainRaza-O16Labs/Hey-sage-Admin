@@ -292,12 +292,12 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
               {documents.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{doc.filename}</p>
+                    <p className="truncate text-sm font-medium">{doc.file_name || doc.filename}</p>
                     <p className="text-xs text-muted-foreground">
                       {doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : ""} · {doc.chunk_count} chunks
                     </p>
                   </div>
-                  <Badge variant={doc.status === "ready" ? "default" : doc.status === "error" ? "destructive" : "secondary"}>
+                  <Badge variant={doc.status === "indexed" ? "default" : doc.status === "failed" ? "destructive" : "secondary"}>
                     {doc.status}
                   </Badge>
                 </div>

@@ -1,5 +1,7 @@
-import { Route } from "lucide-react";
+import Link from "next/link";
+import { Check, Route } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AiRouterForm } from "@/components/ai-management/ai-router-form";
 import { AiManagementStoreError, getParentAgentConfig, listCategories } from "@/lib/ai-management/store";
@@ -36,34 +38,48 @@ export default async function AiRouterPage() {
             {errorMessage ? (
               <p className="text-sm text-destructive">{errorMessage}</p>
             ) : (
-              <AiRouterForm initial={config} categories={categories} />
+              <AiRouterForm initial={config} />
             )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>How routing works</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>Available Categories</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/ai-management/categories/new" />}
+            >
+              New Category
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {[
-                { step: "User Request", description: "The user sends a message or voice input" },
-                { step: "AI Router", description: "Coordinates and selects the appropriate category" },
-                { step: "Category", description: "Routes to a specialized domain of agents" },
-                { step: "Specialized Agent", description: "Processes the request with tools and knowledge" },
-              ].map((item, index) => (
-                <div key={item.step} className="flex items-start gap-3">
-                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-                    {index + 1}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{item.step}</p>
-                    <p className="text-xs text-muted-foreground">{item.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No categories yet. Create a category so the AI Router can delegate requests.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Category
+                </p>
+                <ul className="space-y-2">
+                  {categories.map((category) => (
+                    <li key={category.id}>
+                      <Link
+                        href={`/ai-management/categories/${category.id}`}
+                        className="flex items-center gap-2 text-sm hover:underline"
+                      >
+                        <Check className="size-4 shrink-0 text-muted-foreground" />
+                        {category.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

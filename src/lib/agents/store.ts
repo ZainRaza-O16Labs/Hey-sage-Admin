@@ -9,6 +9,8 @@ import {
   type DocumentStatus,
   type InstructionsStatus,
 } from "@/lib/agents/schema";
+import { uniqueSlug } from "@/lib/ai-management/slug";
+import { writeActivityLog } from "@/lib/ai-management/activity-logs";
 
 export type AgentStatRow = {
   id: string;
@@ -61,7 +63,7 @@ function isMissingRelation(message: string) {
 export async function listAgents(): Promise<Agent[]> {
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("agents")
+    .from("ai_agents")
     .select("*")
     .order("created_at", { ascending: false });
 
@@ -81,7 +83,7 @@ export async function listAgents(): Promise<Agent[]> {
 export async function getAgent(id: string): Promise<Agent | null> {
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("agents")
+    .from("ai_agents")
     .select("*")
     .eq("id", id)
     .maybeSingle();
@@ -172,11 +174,20 @@ function configStringArray(
 
 export async function createAgent(input: AgentInput): Promise<Agent> {
   const supabase = requireStore();
+  const model =
+    typeof input.configuration?.model === "string"
+      ? String(input.configuration.model)
+      : "openai/gpt-4o-mini";
+  const temperature =
+    typeof input.configuration?.temperature === "number"
+      ? input.configuration.temperature
+      : 0.7;
   const { data, error } = await supabase
-    .from("agents")
+    .from("ai_agents")
     .insert({
       organization_id: "a0000000-0000-4000-8000-000000000001",
       name: input.name,
+      slug: uniqueSlug(input.name),
       description: input.description,
       instructions: input.instructions,
       status: input.status,
@@ -184,6 +195,12 @@ export async function createAgent(input: AgentInput): Promise<Agent> {
       category_id: input.category_id ?? null,
       voice_id: input.voice_id ?? null,
       voice_name: input.voice_name ?? null,
+      model,
+      temperature,
+      memory_enabled: input.memory_enabled ?? false,
+      short_term_memory_enabled: input.short_term_memory_enabled ?? false,
+      long_term_memory_enabled: input.long_term_memory_enabled ?? false,
+      shared_memory_enabled: input.shared_memory_enabled ?? false,
       configuration: input.configuration ?? {},
       instructions_status: "ready",
       instructions_error: null,
@@ -197,13 +214,21 @@ export async function createAgent(input: AgentInput): Promise<Agent> {
     throw new AgentsStoreError(error?.message ?? "Could not create agent.");
   }
 
-  return mapAgentRow(data as Record<string, unknown>);
+  const agent = mapAgentRow(data as Record<string, unknown>);
+  void writeActivityLog({
+    action: "create",
+    entityType: "ai_agents",
+    entityId: agent.id,
+    newData: agent as unknown as Record<string, unknown>,
+  });
+  return agent;
 }
 
 export async function updateAgent(
   id: string,
   patch: AgentPatch,
 ): Promise<Agent> {
+  const previous = await getAgent(id);
   const supabase = requireStore();
   const payload: Record<string, unknown> = { ...patch };
   delete payload.voices;
@@ -219,6 +244,9 @@ export async function updateAgent(
   }
   if ("configuration" in patch) {
     payload.configuration = patch.configuration ?? {};
+    const cfg = (patch.configuration ?? {}) as Record<string, unknown>;
+    if (typeof cfg.model === "string") payload.model = cfg.model;
+    if (typeof cfg.temperature === "number") payload.temperature = cfg.temperature;
   }
   if ("lifecycle_status" in patch) {
     payload.lifecycle_status = patch.lifecycle_status ?? "draft";
@@ -226,8 +254,20 @@ export async function updateAgent(
   if ("category_id" in patch) {
     payload.category_id = patch.category_id ?? null;
   }
+  if ("memory_enabled" in patch) {
+    payload.memory_enabled = patch.memory_enabled === true;
+  }
+  if ("short_term_memory_enabled" in patch) {
+    payload.short_term_memory_enabled = patch.short_term_memory_enabled === true;
+  }
+  if ("long_term_memory_enabled" in patch) {
+    payload.long_term_memory_enabled = patch.long_term_memory_enabled === true;
+  }
+  if ("shared_memory_enabled" in patch) {
+    payload.shared_memory_enabled = patch.shared_memory_enabled === true;
+  }
   const { data, error } = await supabase
-    .from("agents")
+    .from("ai_agents")
     .update(payload)
     .eq("id", id)
     .select("*")
@@ -240,10 +280,19 @@ export async function updateAgent(
     throw new AgentsStoreError(error?.message ?? "Could not update agent.");
   }
 
-  return mapAgentRow(data as Record<string, unknown>);
+  const agent = mapAgentRow(data as Record<string, unknown>);
+  void writeActivityLog({
+    action: "update",
+    entityType: "ai_agents",
+    entityId: agent.id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+    newData: agent as unknown as Record<string, unknown>,
+  });
+  return agent;
 }
 
 export async function deleteAgent(id: string): Promise<void> {
+  const previous = await getAgent(id);
   const supabase = requireStore();
 
   const { error: assignmentsError } = await supabase
@@ -262,7 +311,7 @@ export async function deleteAgent(id: string): Promise<void> {
   }
 
   const { error: conversationsError } = await supabase
-    .from("conversations")
+    .from("ai_conversations")
     .delete()
     .eq("agent_id", id);
   if (conversationsError && !isMissingRelation(conversationsError.message)) {
@@ -270,19 +319,19 @@ export async function deleteAgent(id: string): Promise<void> {
   }
 
   const { data: docs } = await supabase
-    .from("knowledge_documents")
-    .select("storage_path")
+    .from("ai_documents")
+    .select("file_path")
     .eq("agent_id", id);
 
   const paths = (docs ?? [])
-    .map((row) => row.storage_path)
+    .map((row) => (row as { file_path?: string }).file_path)
     .filter((path): path is string => Boolean(path));
   if (paths.length > 0) {
     await supabase.storage.from("agent-documents").remove(paths);
   }
 
   const { data, error } = await supabase
-    .from("agents")
+    .from("ai_agents")
     .delete()
     .eq("id", id)
     .select("id")
@@ -294,12 +343,18 @@ export async function deleteAgent(id: string): Promise<void> {
   if (!data) {
     throw new AgentsStoreError("Agent not found.", 404);
   }
+  void writeActivityLog({
+    action: "delete",
+    entityType: "ai_agents",
+    entityId: id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+  });
 }
 
 export async function countAgents(): Promise<number> {
   const supabase = requireStore();
   const { count, error } = await supabase
-    .from("agents")
+    .from("ai_agents")
     .select("id", { count: "exact", head: true });
 
   if (error) {
@@ -330,7 +385,7 @@ export async function getAgentDashboardStats(): Promise<AgentDashboardStats> {
 
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .select("agent_id, status, chunk_count");
 
   if (error) {
@@ -365,10 +420,10 @@ export async function getAgentDashboardStats(): Promise<AgentDashboardStats> {
     documents.total += 1;
     documents.totalChunks += row.chunk_count ?? 0;
 
-    if (row.status === "ready") documents.ready += 1;
+    if (row.status === "indexed") documents.ready += 1;
     else if (row.status === "processing") documents.processing += 1;
-    else if (row.status === "pending") documents.pending += 1;
-    else if (row.status === "error") documents.error += 1;
+    else if (row.status === "uploading") documents.pending += 1;
+    else if (row.status === "failed") documents.error += 1;
 
     const current = byAgent.get(row.agent_id) ?? {
       documentCount: 0,
@@ -376,7 +431,7 @@ export async function getAgentDashboardStats(): Promise<AgentDashboardStats> {
       chunkCount: 0,
     };
     current.documentCount += 1;
-    if (row.status === "ready") current.readyDocuments += 1;
+    if (row.status === "indexed") current.readyDocuments += 1;
     current.chunkCount += row.chunk_count ?? 0;
     byAgent.set(row.agent_id, current);
   }

@@ -11,12 +11,16 @@ export type AiKnowledgeBase = {
 export type AiDocument = {
   id: string;
   knowledge_base_id: string;
+  /** @deprecated Prefer file_name */
   filename: string;
+  file_name: string;
   mime_type: string;
   file_size: number | null;
-  status: "processing" | "ready" | "error" | "pending";
+  status: "uploading" | "processing" | "indexed" | "failed";
   chunk_count: number;
+  /** @deprecated Prefer processing_error */
   error_message: string | null;
+  processing_error: string | null;
   created_at: string;
   updated_at: string;
 };

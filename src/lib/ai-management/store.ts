@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
+import { uniqueSlug } from "@/lib/ai-management/slug";
+import { writeActivityLog } from "@/lib/ai-management/activity-logs";
 
 export type AiCategory = {
   id: string;
@@ -18,7 +20,7 @@ export type ParentAgentConfig = {
   name: string;
   description: string;
   instructions: string;
-  automatic_selection: boolean;
+  automatic_routing: boolean;
   fallback_agent_id: string | null;
   status: "active" | "inactive";
   created_at: string;
@@ -61,6 +63,23 @@ function storeError(error: { message: string }) {
   return new AiManagementStoreError(error.message);
 }
 
+function mapParentAgentConfig(row: Record<string, unknown>): ParentAgentConfig {
+  return {
+    id: String(row.id ?? ""),
+    organization_id: String(row.organization_id ?? DEFAULT_ORGANIZATION_ID),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    instructions: String(row.instructions ?? ""),
+    automatic_routing:
+      typeof row.automatic_routing === "boolean" ? row.automatic_routing : true,
+    fallback_agent_id:
+      typeof row.fallback_agent_id === "string" ? row.fallback_agent_id : null,
+    status: row.status === "inactive" ? "inactive" : "active",
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
 export async function listCategories(): Promise<AiCategory[]> {
   const { data, error } = await requireStore()
     .from("ai_categories")
@@ -79,11 +98,22 @@ export async function createCategory(input: {
 }): Promise<AiCategory> {
   const { data, error } = await requireStore()
     .from("ai_categories")
-    .insert({ organization_id: DEFAULT_ORGANIZATION_ID, ...input })
+    .insert({
+      organization_id: DEFAULT_ORGANIZATION_ID,
+      slug: uniqueSlug(input.name),
+      ...input,
+    })
     .select("*")
     .single();
   if (error || !data) throw storeError(error ?? { message: "Could not create category." });
-  return data as AiCategory;
+  const category = data as AiCategory;
+  void writeActivityLog({
+    action: "create",
+    entityType: "ai_categories",
+    entityId: category.id,
+    newData: category as unknown as Record<string, unknown>,
+  });
+  return category;
 }
 
 export async function getParentAgentConfig(): Promise<ParentAgentConfig | null> {
@@ -93,17 +123,19 @@ export async function getParentAgentConfig(): Promise<ParentAgentConfig | null> 
     .eq("organization_id", DEFAULT_ORGANIZATION_ID)
     .maybeSingle();
   if (error) throw storeError(error);
-  return (data as ParentAgentConfig | null) ?? null;
+  if (!data) return null;
+  return mapParentAgentConfig(data as Record<string, unknown>);
 }
 
 export async function updateParentAgentConfig(input: {
   name: string;
   description: string;
   instructions: string;
-  automatic_selection: boolean;
+  automatic_routing: boolean;
   fallback_agent_id: string | null;
   status: "active" | "inactive";
 }): Promise<ParentAgentConfig> {
+  const previous = await getParentAgentConfig();
   const { data, error } = await requireStore()
     .from("ai_parent_agent_config")
     .upsert(
@@ -113,7 +145,15 @@ export async function updateParentAgentConfig(input: {
     .select("*")
     .single();
   if (error || !data) throw storeError(error ?? { message: "Could not save the AI Router configuration." });
-  return data as ParentAgentConfig;
+  const config = mapParentAgentConfig(data as Record<string, unknown>);
+  void writeActivityLog({
+    action: "configure",
+    entityType: "ai_parent_agent_config",
+    entityId: config.id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+    newData: config as unknown as Record<string, unknown>,
+  });
+  return config;
 }
 
 export async function getCategory(id: string): Promise<AiCategory> {
@@ -137,6 +177,7 @@ export async function updateCategory(
     status: "active" | "inactive";
   }
 ): Promise<AiCategory> {
+  const previous = await getCategory(id).catch(() => null);
   const { data, error } = await requireStore()
     .from("ai_categories")
     .update(input)
@@ -145,16 +186,31 @@ export async function updateCategory(
     .select("*")
     .single();
   if (error || !data) throw storeError(error ?? { message: "Could not update category." });
-  return data as AiCategory;
+  const category = data as AiCategory;
+  void writeActivityLog({
+    action: "update",
+    entityType: "ai_categories",
+    entityId: category.id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+    newData: category as unknown as Record<string, unknown>,
+  });
+  return category;
 }
 
 export async function deleteCategory(id: string): Promise<void> {
+  const previous = await getCategory(id).catch(() => null);
   const { error } = await requireStore()
     .from("ai_categories")
     .delete()
     .eq("id", id)
     .eq("organization_id", DEFAULT_ORGANIZATION_ID);
   if (error) throw storeError(error);
+  void writeActivityLog({
+    action: "delete",
+    entityType: "ai_categories",
+    entityId: id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+  });
 }
 
 // ── Tools ───────────────────────────────────────────────────────────────
@@ -172,7 +228,7 @@ export type AiToolConfig = {
 };
 
 const TOOL_COLUMNS =
-  "id, organization_id, name, tool_key, description, status, created_at, updated_at";
+  "id, organization_id, name, tool_key, description, status, configuration, created_at, updated_at";
 
 export function mapToolRow(row: Record<string, unknown>): AiToolConfig {
   return {
@@ -185,9 +241,11 @@ export function mapToolRow(row: Record<string, unknown>): AiToolConfig {
     description: String(row.description ?? ""),
     status: row.status === "inactive" ? "inactive" : "active",
     config:
-      row.config && typeof row.config === "object"
-        ? (row.config as Record<string, unknown>)
-        : undefined,
+      row.configuration && typeof row.configuration === "object"
+        ? (row.configuration as Record<string, unknown>)
+        : row.config && typeof row.config === "object"
+          ? (row.config as Record<string, unknown>)
+          : undefined,
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };
@@ -237,12 +295,12 @@ export async function listAgentsByTool(toolId: string): Promise<Array<{
 }>> {
   const { data, error } = await requireStore()
     .from("ai_agent_tools")
-    .select("agents(id, name)")
+    .select("ai_agents(id, name)")
     .eq("tool_id", toolId);
   if (error) throw storeError(error);
   const agents: Array<{ id: string; name: string }> = [];
   for (const row of data ?? []) {
-    const raw = (row as { agents?: unknown }).agents;
+    const raw = (row as { ai_agents?: unknown }).ai_agents;
     const agent = Array.isArray(raw) ? (raw[0] as Record<string, unknown> | undefined) : (raw as Record<string, unknown> | undefined);
     if (agent && typeof agent === "object") {
       agents.push({
@@ -259,6 +317,7 @@ export async function updateToolStatus(
   id: string,
   status: "active" | "inactive",
 ): Promise<AiToolConfig> {
+  const previous = await getTool(id);
   const { data, error } = await requireStore()
     .from("ai_tools")
     .update({ status })
@@ -272,7 +331,15 @@ export async function updateToolStatus(
     }
     throw storeError(error ?? { message: "Could not update tool." });
   }
-  return mapToolRow(data as Record<string, unknown>);
+  const tool = mapToolRow(data as Record<string, unknown>);
+  void writeActivityLog({
+    action: "status_change",
+    entityType: "ai_tools",
+    entityId: tool.id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+    newData: tool as unknown as Record<string, unknown>,
+  });
+  return tool;
 }
 
 export async function _getToolIdsByAgent(agentId: string): Promise<string[]> {
@@ -306,6 +373,11 @@ export async function syncAgentAssignments(
   },
 ): Promise<void> {
   const supabase = requireStore();
+  const previousTools = await _getToolIdsByAgent(agentId).catch(() => []);
+  const previousKbs = await listAgentKnowledgeBaseAssignments(agentId).catch(
+    () => [],
+  );
+
   const { error: toolsDeleteError } = await supabase
     .from("ai_agent_tools")
     .delete()
@@ -320,10 +392,12 @@ export async function syncAgentAssignments(
   const toolRows = input.toolIds.map((tool_id) => ({
     agent_id: agentId,
     tool_id,
+    enabled: true,
   }));
   const kbRows = input.knowledgeBaseIds.map((knowledge_base_id) => ({
     agent_id: agentId,
     knowledge_base_id,
+    enabled: true,
   }));
 
   if (toolRows.length > 0) {
@@ -338,6 +412,20 @@ export async function syncAgentAssignments(
       .insert(kbRows);
     if (kbError) throw storeError(kbError);
   }
+
+  void writeActivityLog({
+    action: "assign",
+    entityType: "ai_agents",
+    entityId: agentId,
+    oldData: {
+      tool_ids: previousTools,
+      knowledge_base_ids: previousKbs,
+    },
+    newData: {
+      tool_ids: input.toolIds,
+      knowledge_base_ids: input.knowledgeBaseIds,
+    },
+  });
 }
 
 // ── Knowledge Bases ────────────────────────────────────────────────────
@@ -391,7 +479,11 @@ export async function createKnowledgeBase(input: {
 }): Promise<AiKnowledgeBaseRow> {
   const { data, error } = await requireStore()
     .from("ai_knowledge_bases")
-    .insert({ organization_id: DEFAULT_ORGANIZATION_ID, ...input })
+    .insert({
+      organization_id: DEFAULT_ORGANIZATION_ID,
+      slug: uniqueSlug(input.name),
+      ...input,
+    })
     .select(KNOWLEDGE_BASE_COLUMNS)
     .single();
   if (error || !data) {
@@ -399,7 +491,14 @@ export async function createKnowledgeBase(input: {
       error?.message ?? "Could not create knowledge base.",
     );
   }
-  return data as AiKnowledgeBaseRow;
+  const kb = data as AiKnowledgeBaseRow;
+  void writeActivityLog({
+    action: "create",
+    entityType: "ai_knowledge_bases",
+    entityId: kb.id,
+    newData: kb as unknown as Record<string, unknown>,
+  });
+  return kb;
 }
 
 export async function updateKnowledgeBase(
@@ -410,6 +509,7 @@ export async function updateKnowledgeBase(
     status?: "active" | "inactive";
   },
 ): Promise<AiKnowledgeBaseRow> {
+  const previous = await getKnowledgeBase(id).catch(() => null);
   const { data, error } = await requireStore()
     .from("ai_knowledge_bases")
     .update(input)
@@ -425,7 +525,15 @@ export async function updateKnowledgeBase(
       error?.message ?? "Could not update knowledge base.",
     );
   }
-  return data as AiKnowledgeBaseRow;
+  const kb = data as AiKnowledgeBaseRow;
+  void writeActivityLog({
+    action: "update",
+    entityType: "ai_knowledge_bases",
+    entityId: kb.id,
+    oldData: previous as unknown as Record<string, unknown> | null,
+    newData: kb as unknown as Record<string, unknown>,
+  });
+  return kb;
 }
 
 export async function deleteKnowledgeBase(id: string): Promise<void> {
@@ -434,11 +542,11 @@ export async function deleteKnowledgeBase(id: string): Promise<void> {
   if (!existing) throw new AiManagementStoreError("Knowledge base not found.", 404);
 
   const { data: docs } = await supabase
-    .from("knowledge_documents")
-    .select("storage_path")
+    .from("ai_documents")
+    .select("file_path")
     .eq("knowledge_base_id", id);
   const paths = (docs ?? [])
-    .map((row) => (row as { storage_path?: string }).storage_path)
+    .map((row) => (row as { file_path?: string }).file_path)
     .filter((path): path is string => Boolean(path));
   if (paths.length > 0) {
     await supabase.storage.from("agent-documents").remove(paths);
@@ -446,7 +554,7 @@ export async function deleteKnowledgeBase(id: string): Promise<void> {
 
   // Remove document rows before the KB so FK-safe in either direction.
   await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .delete()
     .eq("knowledge_base_id", id);
 
@@ -456,6 +564,12 @@ export async function deleteKnowledgeBase(id: string): Promise<void> {
     .eq("id", id)
     .eq("organization_id", DEFAULT_ORGANIZATION_ID);
   if (error) throw storeError(error);
+  void writeActivityLog({
+    action: "delete",
+    entityType: "ai_knowledge_bases",
+    entityId: id,
+    oldData: existing as unknown as Record<string, unknown>,
+  });
 }
 
 export async function listKnowledgeBaseStats(): Promise<
@@ -465,7 +579,7 @@ export async function listKnowledgeBaseStats(): Promise<
   const [{ data: docData, error: docError }, { data: agentData, error: agentError }] =
     await Promise.all([
       supabase
-        .from("knowledge_documents")
+        .from("ai_documents")
         .select("knowledge_base_id, chunk_count, status"),
       supabase
         .from("ai_agent_knowledge_bases")
@@ -494,7 +608,7 @@ export async function listKnowledgeBaseStats(): Promise<
     if (!row.knowledge_base_id) continue;
     const entry = ensure(row.knowledge_base_id);
     entry.documentCount += 1;
-    if (row.status === "ready") entry.readyDocumentCount += 1;
+    if (row.status === "indexed") entry.readyDocumentCount += 1;
     entry.chunkCount += typeof row.chunk_count === "number" ? row.chunk_count : 0;
   }
   for (const row of (agentData ?? []) as Array<{ knowledge_base_id: string | null }>) {
@@ -515,11 +629,11 @@ export async function getKnowledgeBaseStats(
   const supabase = requireStore();
   const [{ count: documentCount }, chunkQuery, agentQuery] = await Promise.all([
     supabase
-      .from("knowledge_documents")
+      .from("ai_documents")
       .select("id", { count: "exact", head: true })
       .eq("knowledge_base_id", id),
     supabase
-      .from("knowledge_documents")
+      .from("ai_documents")
       .select("chunk_count, status")
       .eq("knowledge_base_id", id),
     supabase
@@ -533,9 +647,10 @@ export async function getKnowledgeBaseStats(
       sum + (typeof (row as { chunk_count?: number }).chunk_count === "number" ? (row as { chunk_count: number }).chunk_count : 0),
     0,
   );
-  const readyDocumentCount = (chunkQuery.data ?? []).filter(
-    (row) => (row as { status?: string }).status === "ready",
-  ).length;
+  const readyDocumentCount = (chunkQuery.data ?? []).filter((row) => {
+    const status = (row as { status?: string }).status;
+    return status === "indexed";
+  }).length;
   return {
     documentCount: documentCount ?? 0,
     chunkCount,
@@ -544,7 +659,7 @@ export async function getKnowledgeBaseStats(
   };
 }
 
-// ── Settings ────────────────────────────────────────────────────────────
+// ── Settings (key/value ai_settings) ────────────────────────────────────
 
 export type AiSettings = {
   default_model: string;
@@ -562,33 +677,76 @@ const SETTING_DEFAULTS: AiSettings = {
   memory_enabled: true,
 };
 
-function readConfig(data: unknown): Record<string, unknown> {
-  if (!data || typeof data !== "object") return {};
-  const row = data as { config?: unknown };
-  return row.config && typeof row.config === "object"
-    ? (row.config as Record<string, unknown>)
-    : {};
-}
+const SETTING_KEYS = [
+  "default_model",
+  "default_temperature",
+  "default_top_k",
+  "similarity_threshold",
+  "memory_enabled",
+  "elevenlabs_api_key",
+] as const;
 
-export async function getAISettings(): Promise<AiSettings & {
-  elevenlabs_configured: boolean;
-  elevenlabs_source: "env" | "database" | "not_configured";
-}> {
+async function loadSettingsMap(): Promise<Map<string, unknown>> {
   const { data, error } = await requireStore()
     .from("ai_settings")
-    .select("config")
-    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
-    .maybeSingle();
+    .select("key, value")
+    .in("key", [...SETTING_KEYS]);
   if (error) throw storeError(error);
+  const map = new Map<string, unknown>();
+  for (const row of data ?? []) {
+    const key = String((row as { key?: string }).key ?? "");
+    if (!key) continue;
+    map.set(key, (row as { value?: unknown }).value);
+  }
+  return map;
+}
 
-  const config = readConfig(data);
-  const firstName = (key: string, fallback: number | string | boolean) => {
-    const value = config[key];
-    return typeof value === typeof fallback ? value : fallback;
-  };
+function readTyped<T>(
+  map: Map<string, unknown>,
+  key: string,
+  fallback: T,
+): T {
+  const raw = map.get(key);
+  if (raw === undefined || raw === null) return fallback;
+  if (typeof fallback === "number") {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    return (Number.isFinite(n) ? n : fallback) as T;
+  }
+  if (typeof fallback === "boolean") {
+    if (typeof raw === "boolean") return raw as T;
+    if (raw === "true") return true as T;
+    if (raw === "false") return false as T;
+    return fallback;
+  }
+  return (typeof raw === "string" ? raw : String(raw)) as T;
+}
 
+async function upsertSetting(
+  key: string,
+  value: unknown,
+  description = "",
+): Promise<void> {
+  const { error } = await requireStore()
+    .from("ai_settings")
+    .upsert({ key, value, description }, { onConflict: "key" });
+  if (error) throw storeError(error);
+}
+
+export async function getAISettings(): Promise<
+  AiSettings & {
+    elevenlabs_configured: boolean;
+    elevenlabs_source: "env" | "database" | "not_configured";
+  }
+> {
+  const map = await loadSettingsMap();
   const envKey = process.env.ELEVENLABS_API_KEY?.trim() ?? "";
-  const elevenlabs_key: string = "elevenlabs_api_key" in config ? String(config.elevenlabs_api_key ?? "") : "";
+  const dbKeyRaw = map.get("elevenlabs_api_key");
+  const elevenlabs_key =
+    typeof dbKeyRaw === "string"
+      ? dbKeyRaw
+      : dbKeyRaw != null
+        ? String(dbKeyRaw)
+        : "";
   const elevenlabs_source = envKey.startsWith("sk_")
     ? ("env" as const)
     : elevenlabs_key.startsWith("sk_")
@@ -596,53 +754,106 @@ export async function getAISettings(): Promise<AiSettings & {
       : ("not_configured" as const);
 
   return {
-    default_model: String(firstName("default_model", SETTING_DEFAULTS.default_model)),
-    default_temperature: Number(firstName("default_temperature", SETTING_DEFAULTS.default_temperature)),
-    default_top_k: Number(firstName("default_top_k", SETTING_DEFAULTS.default_top_k)),
-    similarity_threshold: Number(firstName("similarity_threshold", SETTING_DEFAULTS.similarity_threshold)),
-    memory_enabled: Boolean(firstName("memory_enabled", SETTING_DEFAULTS.memory_enabled)),
+    default_model: readTyped(map, "default_model", SETTING_DEFAULTS.default_model),
+    default_temperature: readTyped(
+      map,
+      "default_temperature",
+      SETTING_DEFAULTS.default_temperature,
+    ),
+    default_top_k: readTyped(map, "default_top_k", SETTING_DEFAULTS.default_top_k),
+    similarity_threshold: readTyped(
+      map,
+      "similarity_threshold",
+      SETTING_DEFAULTS.similarity_threshold,
+    ),
+    memory_enabled: readTyped(
+      map,
+      "memory_enabled",
+      SETTING_DEFAULTS.memory_enabled,
+    ),
     elevenlabs_configured: elevenlabs_source !== "not_configured",
     elevenlabs_source,
   };
 }
 
-export async function updateAISettings(input: Partial<AiSettings> & {
-  elevenlabs_api_key?: string | null;
-}): Promise<AiSettings & {
-  elevenlabs_configured: boolean;
-  elevenlabs_source: "env" | "database" | "not_configured";
-}> {
+export async function updateAISettings(
+  input: Partial<AiSettings> & {
+    elevenlabs_api_key?: string | null;
+  },
+): Promise<
+  AiSettings & {
+    elevenlabs_configured: boolean;
+    elevenlabs_source: "env" | "database" | "not_configured";
+  }
+> {
   const current = await getAISettings();
-  const config: Record<string, unknown> = {
+  const next: AiSettings = {
     default_model: input.default_model ?? current.default_model,
-    default_temperature: input.default_temperature ?? current.default_temperature,
+    default_temperature:
+      input.default_temperature ?? current.default_temperature,
     default_top_k: input.default_top_k ?? current.default_top_k,
-    similarity_threshold: input.similarity_threshold ?? current.similarity_threshold,
+    similarity_threshold:
+      input.similarity_threshold ?? current.similarity_threshold,
     memory_enabled: input.memory_enabled ?? current.memory_enabled,
   };
+
+  await Promise.all([
+    upsertSetting("default_model", next.default_model, "Default LLM model"),
+    upsertSetting(
+      "default_temperature",
+      next.default_temperature,
+      "Default sampling temperature",
+    ),
+    upsertSetting("default_top_k", next.default_top_k, "Default RAG top-k"),
+    upsertSetting(
+      "similarity_threshold",
+      next.similarity_threshold,
+      "Default RAG similarity threshold",
+    ),
+    upsertSetting(
+      "memory_enabled",
+      next.memory_enabled,
+      "Global memory feature flag",
+    ),
+  ]);
+
   if ("elevenlabs_api_key" in input) {
     const key = input.elevenlabs_api_key?.trim() ?? "";
     if (!key) {
-      delete config.elevenlabs_api_key;
+      await requireStore()
+        .from("ai_settings")
+        .delete()
+        .eq("key", "elevenlabs_api_key");
     } else {
-      config.elevenlabs_api_key = key;
+      await upsertSetting(
+        "elevenlabs_api_key",
+        key,
+        "ElevenLabs API key (server-side only)",
+      );
     }
   }
 
-  const { data, error } = await requireStore()
-    .from("ai_settings")
-    .upsert(
-      { organization_id: DEFAULT_ORGANIZATION_ID, config },
-      { onConflict: "organization_id" },
-    )
-    .select("config")
-    .single();
-  if (error || !data) {
-    throw new AiManagementStoreError(
-      error?.message ?? "Could not save settings.",
-    );
-  }
-  return getAISettings();
+  const updated = await getAISettings();
+  void writeActivityLog({
+    action: "configure",
+    entityType: "ai_settings",
+    entityId: null,
+    oldData: {
+      default_model: current.default_model,
+      default_temperature: current.default_temperature,
+      default_top_k: current.default_top_k,
+      similarity_threshold: current.similarity_threshold,
+      memory_enabled: current.memory_enabled,
+    },
+    newData: {
+      default_model: updated.default_model,
+      default_temperature: updated.default_temperature,
+      default_top_k: updated.default_top_k,
+      similarity_threshold: updated.similarity_threshold,
+      memory_enabled: updated.memory_enabled,
+    },
+  });
+  return updated;
 }
 
 /**
@@ -652,16 +863,13 @@ export async function updateAISettings(input: Partial<AiSettings> & {
 export async function getElevenLabsApiKey(): Promise<string> {
   const envKey = process.env.ELEVENLABS_API_KEY?.trim() ?? "";
   if (envKey.startsWith("sk_")) return envKey;
-  const settings = await getAISettings();
-  if (settings.elevenlabs_source === "database") {
-    const { data } = await requireStore()
-      .from("ai_settings")
-      .select("config")
-      .eq("organization_id", DEFAULT_ORGANIZATION_ID)
-      .maybeSingle();
-    const config = readConfig(data);
-    const stored = "elevenlabs_api_key" in config ? String(config.elevenlabs_api_key ?? "") : "";
-    if (stored.startsWith("sk_")) return stored;
-  }
-  return "";
+  const { data } = await requireStore()
+    .from("ai_settings")
+    .select("value")
+    .eq("key", "elevenlabs_api_key")
+    .maybeSingle();
+  const value = (data as { value?: unknown } | null)?.value;
+  const key =
+    typeof value === "string" ? value : value != null ? String(value) : "";
+  return key.startsWith("sk_") ? key : "";
 }

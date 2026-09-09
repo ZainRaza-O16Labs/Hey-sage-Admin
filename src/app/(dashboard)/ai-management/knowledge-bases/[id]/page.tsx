@@ -152,7 +152,7 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
                   {documents.map((doc) => (
                     <tr key={doc.id} className="border-b last:border-0">
                       <td className="py-2 pr-4">
-                        <p className="truncate font-medium">{doc.filename}</p>
+                        <p className="truncate font-medium">{doc.file_name || doc.filename}</p>
                       </td>
                       <td className="py-2 pr-4">
                         <Badge variant="outline">{mimeTypeLabel(doc.mime_type)}</Badge>
@@ -161,7 +161,7 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
                         {doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : "—"}
                       </td>
                       <td className="py-2 pr-4">
-                        <Badge variant={doc.status === "ready" ? "default" : doc.status === "error" ? "destructive" : "secondary"}>
+                        <Badge variant={doc.status === "indexed" ? "default" : doc.status === "failed" ? "destructive" : "secondary"}>
                           {doc.status}
                         </Badge>
                       </td>

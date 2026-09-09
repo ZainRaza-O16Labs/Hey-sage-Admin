@@ -23,7 +23,7 @@ export async function PUT(request: Request) {
       name,
       description: typeof body?.description === "string" ? body.description.trim() : "",
       instructions: typeof body?.instructions === "string" ? body.instructions : "",
-      automatic_selection: body?.automatic_selection !== false,
+      automatic_routing: body?.automatic_routing !== false,
       fallback_agent_id: typeof body?.fallback_agent_id === "string" ? body.fallback_agent_id : null,
       status: body?.status === "inactive" ? "inactive" : "active",
     });

@@ -4,11 +4,12 @@ import {
   type KnowledgeDocument,
   type KnowledgeScope,
 } from "@/lib/agents/schema";
+import { writeActivityLog } from "@/lib/ai-management/activity-logs";
 
 const BUCKET = "agent-documents";
 
 const LIST_COLUMNS =
-  "id, organization_id, agent_id, scope, filename, storage_path, mime_type, status, error_message, page_count, file_size, chunk_count, processed_at, metadata, created_at, updated_at";
+  "id, organization_id, agent_id, scope, name, file_name, file_path, mime_type, status, processing_error, page_count, file_size, chunk_count, processed_at, metadata, created_at, updated_at";
 
 export async function listDocuments(agentId: string): Promise<KnowledgeDocument[]> {
   const agent = await getAgent(agentId);
@@ -18,7 +19,7 @@ export async function listDocuments(agentId: string): Promise<KnowledgeDocument[
 
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .select(LIST_COLUMNS)
     .eq("organization_id", agent.organization_id)
     .or(`agent_id.eq.${agentId},scope.eq.shared`)
@@ -39,7 +40,7 @@ export async function getDocument(
 
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .select(LIST_COLUMNS)
     .eq("id", documentId)
     .eq("organization_id", agent.organization_id)
@@ -67,17 +68,18 @@ export async function createDocument(input: {
 }): Promise<KnowledgeDocument> {
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .insert({
       organization_id: input.organizationId,
       agent_id: input.scope === "shared" ? null : input.agentId,
       scope: input.scope,
-      filename: input.filename,
-      storage_path: input.storagePath,
+      name: input.filename,
+      file_name: input.filename,
+      file_path: input.storagePath,
       mime_type: input.mimeType,
       file_size: input.fileSize,
       metadata: input.metadata ?? {},
-      status: "pending",
+      status: "uploading",
     })
     .select(LIST_COLUMNS)
     .single();
@@ -85,7 +87,19 @@ export async function createDocument(input: {
   if (error || !data) {
     throw new AgentsStoreError(error?.message ?? "Could not create document.");
   }
-  return mapDocumentRow(data as Record<string, unknown>);
+  const document = mapDocumentRow(data as Record<string, unknown>);
+  void writeActivityLog({
+    action: "upload",
+    entityType: "ai_documents",
+    entityId: document.id,
+    newData: {
+      id: document.id,
+      name: document.name,
+      status: document.status,
+      agent_id: document.agent_id,
+    },
+  });
+  return document;
 }
 
 export async function updateDocument(
@@ -94,7 +108,7 @@ export async function updateDocument(
 ): Promise<void> {
   const supabase = requireStore();
   const { error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .update(patch)
     .eq("id", documentId);
   if (error) {
@@ -127,15 +141,26 @@ export async function deleteDocument(
     throw new AgentsStoreError("Document not found.", 404);
   }
 
-  await supabase.storage.from(BUCKET).remove([existing.storage_path]);
+  await supabase.storage.from(BUCKET).remove([existing.file_path]);
   const { error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .delete()
     .eq("id", documentId);
 
   if (error) {
     throw new AgentsStoreError(error.message);
   }
+  void writeActivityLog({
+    action: "delete",
+    entityType: "ai_documents",
+    entityId: documentId,
+    oldData: {
+      id: existing.id,
+      name: existing.name,
+      status: existing.status,
+      agent_id: existing.agent_id,
+    },
+  });
 }
 
 /**
@@ -145,7 +170,7 @@ export async function deleteDocument(
 export async function getAgentDocumentCounts(): Promise<Record<string, number>> {
   const supabase = requireStore();
   const { data, error } = await supabase
-    .from("knowledge_documents")
+    .from("ai_documents")
     .select("agent_id, scope");
 
   if (error) {

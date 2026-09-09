@@ -13,10 +13,10 @@ export const INSTRUCTIONS_STATUSES = [
   "failed",
 ] as const;
 export const DOCUMENT_STATUSES = [
-  "pending",
+  "uploading",
   "processing",
-  "ready",
-  "error",
+  "indexed",
+  "failed",
 ] as const;
 
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
@@ -28,6 +28,7 @@ export type Agent = {
   id: string;
   organization_id: string;
   name: string;
+  slug: string | null;
   description: string;
   instructions: string;
   instructions_status: InstructionsStatus;
@@ -39,6 +40,10 @@ export type Agent = {
   category_id: string | null;
   voice_id: string | null;
   voice_name: string | null;
+  memory_enabled: boolean;
+  short_term_memory_enabled: boolean;
+  long_term_memory_enabled: boolean;
+  shared_memory_enabled: boolean;
   voices?: AgentVoice[];
   configuration: Record<string, unknown>;
   created_at: string;
@@ -73,6 +78,10 @@ export type AgentInput = {
   voice_name?: string | null;
   voices?: AgentVoiceInput[];
   configuration?: Record<string, unknown>;
+  memory_enabled?: boolean;
+  short_term_memory_enabled?: boolean;
+  long_term_memory_enabled?: boolean;
+  shared_memory_enabled?: boolean;
 };
 
 export type AgentPatch = Partial<AgentInput>;
@@ -92,10 +101,17 @@ export type KnowledgeDocument = {
   organization_id: string;
   agent_id: string | null;
   scope: KnowledgeScope;
+  name: string;
+  file_name: string;
+  file_path: string;
+  /** @deprecated Prefer file_name — kept as alias for UI during transition */
   filename: string;
+  /** @deprecated Prefer file_path */
   storage_path: string;
   mime_type: string;
   status: DocumentStatus;
+  processing_error: string | null;
+  /** @deprecated Prefer processing_error */
   error_message: string | null;
   extracted_text?: string | null;
   metadata: DocumentMetadata | null;
@@ -198,6 +214,19 @@ export function validateAgentInput(body: unknown): ValidationResult {
       data.voice_id = defaultVoice.voice_id;
       data.voice_name = defaultVoice.voice_name;
     }
+  }
+
+  if ("memory_enabled" in source) {
+    data.memory_enabled = source.memory_enabled === true;
+  }
+  if ("short_term_memory_enabled" in source) {
+    data.short_term_memory_enabled = source.short_term_memory_enabled === true;
+  }
+  if ("long_term_memory_enabled" in source) {
+    data.long_term_memory_enabled = source.long_term_memory_enabled === true;
+  }
+  if ("shared_memory_enabled" in source) {
+    data.shared_memory_enabled = source.shared_memory_enabled === true;
   }
 
   const errors = collectErrors(data);
@@ -333,6 +362,18 @@ export function validateAgentPatch(body: unknown): PatchValidationResult {
     }
     data.lifecycle_status = lifecycleStatus;
   }
+  if ("memory_enabled" in source) {
+    data.memory_enabled = source.memory_enabled === true;
+  }
+  if ("short_term_memory_enabled" in source) {
+    data.short_term_memory_enabled = source.short_term_memory_enabled === true;
+  }
+  if ("long_term_memory_enabled" in source) {
+    data.long_term_memory_enabled = source.long_term_memory_enabled === true;
+  }
+  if ("shared_memory_enabled" in source) {
+    data.shared_memory_enabled = source.shared_memory_enabled === true;
+  }
 
   if (Object.keys(data).length === 0) {
     return { ok: false, errors: { name: "No fields to update." } };
@@ -384,6 +425,7 @@ export function mapAgentRow(row: Record<string, unknown>): Agent {
       row.organization_id ?? "a0000000-0000-4000-8000-000000000001",
     ),
     name: String(row.name ?? ""),
+    slug: typeof row.slug === "string" && row.slug ? row.slug : null,
     description: typeof row.description === "string" ? row.description : "",
     instructions: typeof row.instructions === "string" ? row.instructions : "",
     instructions_status: normalizeInstructionsStatus(statusValue),
@@ -407,6 +449,10 @@ export function mapAgentRow(row: Record<string, unknown>): Agent {
       typeof row.voice_id === "string" ? row.voice_id.trim() || null : null,
     voice_name:
       typeof row.voice_name === "string" ? row.voice_name.trim() || null : null,
+    memory_enabled: Boolean(row.memory_enabled),
+    short_term_memory_enabled: Boolean(row.short_term_memory_enabled),
+    long_term_memory_enabled: Boolean(row.long_term_memory_enabled),
+    shared_memory_enabled: Boolean(row.shared_memory_enabled),
     configuration:
       row.configuration && typeof row.configuration === "object"
         ? (row.configuration as Record<string, unknown>)
@@ -435,13 +481,29 @@ function mapDocumentMetadata(value: unknown, filename: string): DocumentMetadata
   };
 }
 
+function normalizeDocumentStatus(value: string): DocumentStatus {
+  if (value === "ready") return "indexed";
+  if (value === "error") return "failed";
+  if (value === "pending") return "uploading";
+  if (isDocumentStatus(value)) return value;
+  return "uploading";
+}
+
 export function mapDocumentRow(
   row: Record<string, unknown>,
   includeText = false,
 ): KnowledgeDocument {
-  const statusValue = readString(row.status) || "pending";
-  const filename = String(row.filename ?? "");
+  const statusValue = readString(row.status) || "uploading";
+  const fileName = String(row.file_name ?? row.filename ?? "");
+  const filePath = String(row.file_path ?? row.storage_path ?? "");
+  const processingError =
+    typeof row.processing_error === "string"
+      ? row.processing_error
+      : typeof row.error_message === "string"
+        ? row.error_message
+        : null;
   const scope = readString(row.scope) === "shared" ? "shared" : "agent";
+  const name = String(row.name ?? (fileName || "Document"));
   const doc: KnowledgeDocument = {
     id: String(row.id),
     organization_id: String(
@@ -450,12 +512,16 @@ export function mapDocumentRow(
     agent_id:
       typeof row.agent_id === "string" && row.agent_id ? row.agent_id : null,
     scope,
-    filename,
-    storage_path: String(row.storage_path ?? ""),
+    name,
+    file_name: fileName,
+    file_path: filePath,
+    filename: fileName,
+    storage_path: filePath,
     mime_type: String(row.mime_type ?? "application/pdf"),
-    status: isDocumentStatus(statusValue) ? statusValue : "pending",
-    error_message: typeof row.error_message === "string" ? row.error_message : null,
-    metadata: mapDocumentMetadata(row.metadata, filename),
+    status: normalizeDocumentStatus(statusValue),
+    processing_error: processingError,
+    error_message: processingError,
+    metadata: mapDocumentMetadata(row.metadata, fileName),
     page_count: typeof row.page_count === "number" ? row.page_count : null,
     file_size: typeof row.file_size === "number" ? row.file_size : null,
     chunk_count: typeof row.chunk_count === "number" ? row.chunk_count : 0,

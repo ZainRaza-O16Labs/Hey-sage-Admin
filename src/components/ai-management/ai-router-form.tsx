@@ -1,21 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { notifyError, notifySuccess } from "@/lib/notify";
-import type { AiCategory, ParentAgentConfig } from "@/lib/ai-management/store";
+import type { ParentAgentConfig } from "@/lib/ai-management/store";
 
 type FormState = Omit<ParentAgentConfig, "id" | "organization_id" | "created_at" | "updated_at">;
 const initialState: FormState = {
   name: "",
   description: "",
   instructions: "",
-  automatic_selection: true,
+  automatic_routing: true,
   fallback_agent_id: null,
   status: "active",
 };
@@ -24,10 +23,8 @@ type Agent = { id: string; name: string };
 
 export function AiRouterForm({
   initial,
-  categories = [],
 }: {
   initial: ParentAgentConfig | null;
-  categories?: AiCategory[];
 }) {
   const [form, setForm] = useState<FormState>(initial ?? initialState);
   const [loading, setLoading] = useState(false);
@@ -103,13 +100,13 @@ export function AiRouterForm({
 
         <div className="flex items-center gap-3">
           <input
-            id="automatic-selection"
+            id="automatic-routing"
             type="checkbox"
-            checked={form.automatic_selection}
-            onChange={(event) => setForm({ ...form, automatic_selection: event.target.checked })}
+            checked={form.automatic_routing}
+            onChange={(event) => setForm({ ...form, automatic_routing: event.target.checked })}
             className="size-4 accent-primary"
           />
-          <Label htmlFor="automatic-selection">Automatic agent selection</Label>
+          <Label htmlFor="automatic-routing">Automatic agent routing</Label>
         </div>
 
         <div className="max-w-xs space-y-2">
@@ -146,20 +143,6 @@ export function AiRouterForm({
       <Button onClick={save} disabled={loading}>
         {loading ? "Saving..." : "Save Changes"}
       </Button>
-
-      {categories.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Available Categories</p>
-          <ul className="space-y-1">
-            {categories.map((cat) => (
-              <li key={cat.id} className="flex items-center gap-2 text-sm">
-                <Check className="size-4 text-muted-foreground" />
-                {cat.name}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

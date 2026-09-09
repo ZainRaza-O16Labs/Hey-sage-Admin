@@ -12,7 +12,7 @@ import {
 
 export const adminNav = [
   { href: "/ai-management/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/ai-management/parent-agent", label: "Parent Agent", icon: Route },
+  { href: "/ai-management/parent-agent", label: "AI Router", icon: Route },
   { href: "/ai-management/categories", label: "Categories", icon: Braces },
   { href: "/ai-management/agents", label: "Agents", icon: Bot },
   { href: "/ai-management/tools", label: "Tools", icon: Puzzle },

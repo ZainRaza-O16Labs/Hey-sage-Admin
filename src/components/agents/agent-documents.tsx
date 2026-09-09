@@ -7,13 +7,20 @@ import { Button } from "@/components/ui/button";
 import type { Agent, KnowledgeDocument } from "@/lib/agents/schema";
 
 function statusLabel(status: KnowledgeDocument["status"]) {
-  if (status === "ready") return "Ready";
-  if (status === "processing" || status === "pending") return "Processing";
-  return "Error";
+  if (status === "indexed") return "Indexed";
+  if (status === "processing" || status === "uploading") return "Processing";
+  return "Failed";
+}
+
+function documentName(document: KnowledgeDocument) {
+  return document.file_name || document.filename;
 }
 
 function kindLabel(document: KnowledgeDocument) {
-  if (document.metadata?.type === "markdown" || document.filename.toLowerCase().endsWith(".md")) {
+  if (
+    document.metadata?.type === "markdown" ||
+    documentName(document).toLowerCase().endsWith(".md")
+  ) {
     return "MD";
   }
   return "PDF";
@@ -164,7 +171,7 @@ export function AgentDocuments({
               className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{document.filename}</p>
+                <p className="truncate text-sm font-medium">{documentName(document)}</p>
                 <p className="text-xs text-muted-foreground">
                   {[
                     document.scope === "shared" ? "Shared" : "Agent",
@@ -172,11 +179,11 @@ export function AgentDocuments({
                     formatSize(document.file_size),
                     document.metadata?.heading,
                     document.page_count ? `${document.page_count} pages` : null,
-                    document.status === "ready" && document.chunk_count > 0
+                    document.status === "indexed" && document.chunk_count > 0
                       ? `${document.chunk_count} chunks`
                       : null,
                     formatProcessedAt(document.processed_at),
-                    document.error_message,
+                    document.processing_error ?? document.error_message,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -185,9 +192,9 @@ export function AgentDocuments({
               <div className="flex shrink-0 items-center gap-2">
                 <Badge
                   variant={
-                    document.status === "ready"
+                    document.status === "indexed"
                       ? "default"
-                      : document.status === "error"
+                      : document.status === "failed"
                         ? "destructive"
                         : "secondary"
                   }
@@ -199,7 +206,7 @@ export function AgentDocuments({
                   size="sm"
                   variant="ghost"
                   disabled={pending}
-                  onClick={() => void remove(document.id, document.filename)}
+                  onClick={() => void remove(document.id, documentName(document))}
                 >
                   Delete
                 </Button>

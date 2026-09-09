@@ -67,6 +67,10 @@ type FormValue = {
   status: AgentInput["status"];
   lifecycle: AgentInput["lifecycle_status"];
   runtime: AgentRuntimeConfig;
+  memory_enabled: boolean;
+  short_term_memory_enabled: boolean;
+  long_term_memory_enabled: boolean;
+  shared_memory_enabled: boolean;
 };
 
 const emptyForm: FormValue = {
@@ -76,6 +80,10 @@ const emptyForm: FormValue = {
   status: "active",
   lifecycle: "draft",
   runtime: defaultRuntimeConfig(),
+  memory_enabled: true,
+  short_term_memory_enabled: true,
+  long_term_memory_enabled: false,
+  shared_memory_enabled: false,
 };
 
 function initialVoiceRows(agent?: Agent): AgentVoiceRow[] {
@@ -128,6 +136,10 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             ...runtimeConfigFromConfiguration(agent.configuration),
             category_id: agent.category_id ?? "",
           },
+          memory_enabled: agent.memory_enabled,
+          short_term_memory_enabled: agent.short_term_memory_enabled,
+          long_term_memory_enabled: agent.long_term_memory_enabled,
+          shared_memory_enabled: agent.shared_memory_enabled,
         }
       : emptyForm,
   );
@@ -171,7 +183,36 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   const [kbSearch, setKbSearch] = useState("");
   const [kbView, setKbView] = useState<"assigned" | "available">("assigned");
 
-const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadFormOptions() {
+      setCategoriesError(null);
+      try {
+        const [cats, toolList, kbList] = await Promise.all([
+          fetchCategories(),
+          fetchTools(),
+          fetchKnowledgeBases(),
+        ]);
+        if (!active) return;
+        setCategories(cats);
+        setTools(toolList);
+        setKnowledgeBases(kbList);
+      } catch (err) {
+        if (!active) return;
+        setCategoriesError(
+          err instanceof Error ? err.message : "Could not load categories.",
+        );
+      }
+    }
+
+    void loadFormOptions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filledVoiceRows = voiceRows.filter((row) => row.voiceId.trim());
 
@@ -326,6 +367,10 @@ const [pending, setPending] = useState(false);
       voice_id: defaultVoice?.voice_id ?? null,
       voice_name: defaultVoice?.voice_name ?? null,
       voices: voicesPayload,
+      memory_enabled: form.memory_enabled,
+      short_term_memory_enabled: form.short_term_memory_enabled,
+      long_term_memory_enabled: form.long_term_memory_enabled,
+      shared_memory_enabled: form.shared_memory_enabled,
       configuration: {
         ...(agent?.configuration ?? {}),
         ...{
@@ -563,6 +608,38 @@ const [pending, setPending] = useState(false);
             Inactive agents do not route production traffic even when published.
           </p>
         </div>
+      </div>
+
+      <div className="space-y-3 rounded-lg border p-4">
+        <div>
+          <Label>Memory</Label>
+          <p className="text-sm text-muted-foreground">
+            Controls retrieval and writes to canonical ai_memories /
+            ai_memory_entries at runtime.
+          </p>
+        </div>
+        {(
+          [
+            ["memory_enabled", "Memory enabled"],
+            ["short_term_memory_enabled", "Short-term (conversation)"],
+            ["long_term_memory_enabled", "Long-term (user/agent context)"],
+            ["shared_memory_enabled", "Shared user memory across agents"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form[key]}
+              onChange={(e) =>
+                setForm((cur) => ({
+                  ...cur,
+                  [key]: e.target.checked,
+                }))
+              }
+            />
+            {label}
+          </label>
+        ))}
       </div>
     </>
   );
@@ -1024,8 +1101,16 @@ const [pending, setPending] = useState(false);
           onRetry={() => {
             setCategoriesError(null);
             setCategories(null);
-            fetchCategories()
-              .then(setCategories)
+            Promise.all([
+              fetchCategories(),
+              fetchTools(),
+              fetchKnowledgeBases(),
+            ])
+              .then(([cats, toolList, kbList]) => {
+                setCategories(cats);
+                setTools(toolList);
+                setKnowledgeBases(kbList);
+              })
               .catch((err) =>
                 setCategoriesError(
                   err instanceof Error

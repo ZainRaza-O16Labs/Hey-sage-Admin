@@ -60,9 +60,9 @@ export async function enqueueUploadedDocument(input: {
   try {
     await uploadDocumentFile(finalPath, input.bytes, mimeType);
     await updateDocument(document.id, {
-      storage_path: finalPath,
+      file_path: finalPath,
       status: "processing",
-      error_message: null,
+      processing_error: null,
     });
     // Process via an agent in the same org (shared docs use uploading agent for enqueue).
     await enqueueDocumentProcess(input.agentId, document.id);
@@ -70,8 +70,8 @@ export async function enqueueUploadedDocument(input: {
     const message =
       error instanceof Error ? error.message : "Could not enqueue document processing.";
     await updateDocument(document.id, {
-      status: "error",
-      error_message: message,
+      status: "failed",
+      processing_error: message,
     });
     throw error instanceof AgentsStoreError
       ? error

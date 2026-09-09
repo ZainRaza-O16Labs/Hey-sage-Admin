@@ -24,8 +24,8 @@ function formatBytes(bytes: number | null): string {
 }
 
 function statusVariant(status: AiDocument["status"]): "default" | "destructive" | "secondary" {
-  if (status === "ready") return "default";
-  if (status === "error") return "destructive";
+  if (status === "indexed") return "default";
+  if (status === "failed") return "destructive";
   return "secondary";
 }
 
@@ -291,16 +291,20 @@ export function AiKnowledgeBaseDocumentsPanel({
           {documents.map((doc) => (
             <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{doc.filename}</p>
+                <p className="truncate text-sm font-medium">
+                  {doc.file_name || doc.filename}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {formatBytes(doc.file_size)}
                   {doc.chunk_count > 0 ? ` · ${doc.chunk_count} chunks` : ""}
-                  {doc.error_message ? ` · ${doc.error_message}` : ""}
+                  {(doc.processing_error ?? doc.error_message)
+                    ? ` · ${doc.processing_error ?? doc.error_message}`
+                    : ""}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
-                {doc.status === "error" || doc.status === "ready" ? (
+                {doc.status === "failed" || doc.status === "indexed" ? (
                   <Button
                     size="icon"
                     variant="ghost"
@@ -330,7 +334,7 @@ export function AiKnowledgeBaseDocumentsPanel({
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
         title="Delete Document"
-        description={`This will permanently remove ${deleteTarget?.filename ?? ""} from this knowledge base. Are you sure you want to continue?`}
+        description={`This will permanently remove ${deleteTarget?.file_name || deleteTarget?.filename || ""} from this knowledge base. Are you sure you want to continue?`}
         confirmLabel="Delete"
         onConfirm={async () => {
           if (deleteTarget) await handleDelete(deleteTarget.id);
