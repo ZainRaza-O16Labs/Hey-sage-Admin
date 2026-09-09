@@ -206,10 +206,13 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
                     : [
                         {
                           id: "legacy",
+                          agent_id: agent.id,
                           voice_id: agent.voice_id!,
                           voice_name: agent.voice_name,
                           is_default: true,
                           verified: true,
+                          created_at: "",
+                          updated_at: "",
                         },
                       ]
                   ).map((voice) => (
@@ -221,9 +224,6 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
                         {voice.voice_name || voice.voice_id}
                         {voice.is_default ? " (default)" : ""}
                       </span>
-                      <Badge variant={voice.verified ? "default" : "secondary"}>
-                        {voice.verified ? "Verified" : "Unverified"}
-                      </Badge>
                     </li>
                   ))}
                 </ul>

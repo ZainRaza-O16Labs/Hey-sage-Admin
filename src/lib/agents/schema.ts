@@ -59,7 +59,6 @@ export type AgentVoice = {
 export type AgentVoiceInput = {
   voice_id: string;
   voice_name?: string | null;
-  verified: boolean;
   is_default: boolean;
 };
 
@@ -234,21 +233,17 @@ function parseAgentVoiceInputs(
       };
     }
     seen.add(key);
-    if (source.verified !== true) {
-      return { ok: false, error: "Every voice must be verified before saving." };
-    }
     voices.push({
       voice_id: voiceId,
       voice_name:
         typeof source.voice_name === "string"
           ? source.voice_name.trim() || null
           : null,
-      verified: true,
       is_default: source.is_default === true,
     });
   }
   if (voices.length === 0) {
-    return { ok: false, error: "At least one verified voice is required." };
+    return { ok: false, error: "At least one voice is required." };
   }
   if (voices.length > 1) {
     return {

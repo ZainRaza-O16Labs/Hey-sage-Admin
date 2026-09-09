@@ -79,7 +79,6 @@ export async function POST(request: Request) {
         {
           voice_id: parsed.data.voice_id,
           voice_name: parsed.data.voice_name ?? null,
-          verified: true,
           is_default: true,
         },
       ]);

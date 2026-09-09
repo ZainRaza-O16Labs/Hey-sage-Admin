@@ -50,8 +50,8 @@ export async function getDefaultAgentVoice(
 ): Promise<AgentVoice | null> {
   const voices = await listAgentVoices(agentId);
   return (
-    voices.find((voice) => voice.is_default && voice.verified) ??
-    voices.find((voice) => voice.verified) ??
+    voices.find((voice) => voice.is_default) ??
+    voices[0] ??
     null
   );
 }
@@ -59,7 +59,6 @@ export async function getDefaultAgentVoice(
 /**
  * Replace an agent's voice catalog atomically (from the Admin form).
  * - Empty voice_id rows are ignored by the caller.
- * - Every saved row must be verified.
  * - Exactly one default among the saved set.
  * - Mirrors the default into agents.voice_id / voice_name for legacy readers.
  */
@@ -162,7 +161,7 @@ export async function deleteAgentVoice(
 
   const remaining = existing.filter((voice) => voice.id !== voiceRowId);
   if (target.is_default && remaining.length > 0) {
-    const nextDefault = remaining.find((voice) => voice.verified) ?? remaining[0]!;
+    const nextDefault = remaining[0]!;
     await setDefaultAgentVoice(agentId, nextDefault.id);
     return listAgentVoices(agentId);
   }
@@ -182,9 +181,6 @@ export async function setDefaultAgentVoice(
   const target = voices.find((voice) => voice.id === voiceRowId);
   if (!target) {
     throw new AgentsStoreError("Voice not found.", 404);
-  }
-  if (!target.verified) {
-    throw new AgentsStoreError("Only a verified voice can be the default.", 400);
   }
 
   const supabase = requireStore();
@@ -236,12 +232,6 @@ function cleanedVoiceInputs(voices: AgentVoiceInput[]): AgentVoiceInput[] {
   for (const voice of voices) {
     const voiceId = voice.voice_id.trim();
     if (!voiceId) continue;
-    if (!voice.verified) {
-      throw new AgentsStoreError(
-        "Every voice must be verified before saving.",
-        400,
-      );
-    }
     const key = voiceId.toLowerCase();
     if (seen.has(key)) {
       throw new AgentsStoreError(
@@ -253,13 +243,12 @@ function cleanedVoiceInputs(voices: AgentVoiceInput[]): AgentVoiceInput[] {
     cleaned.push({
       voice_id: voiceId,
       voice_name: voice.voice_name?.trim() || null,
-      verified: true,
       is_default: Boolean(voice.is_default),
     });
   }
 
   if (cleaned.length === 0) {
-    throw new AgentsStoreError("At least one verified voice is required.", 400);
+    throw new AgentsStoreError("At least one voice is required.", 400);
   }
 
   const defaultCount = cleaned.filter((voice) => voice.is_default).length;
