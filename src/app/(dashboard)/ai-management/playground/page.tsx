@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Send, ChevronDown, ChevronRight, Bot, User, Info } from "lucide-react";
+import { Send, ChevronDown, ChevronRight, Bot, User, Info, Wrench } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,14 @@ type DebugStep = {
   detail: string;
 };
 
+type BackendToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+  status: "success" | "error";
+  result?: unknown;
+  errorMessage?: string;
+};
+
 export default function PlaygroundPage() {
   const [categories, setCategories] = useState<AiCategory[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -31,6 +39,7 @@ export default function PlaygroundPage() {
   const [sending, setSending] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugSteps, setDebugSteps] = useState<DebugStep[]>([]);
+  const [toolCalls, setToolCalls] = useState<BackendToolCall[]>([]);
 
   useEffect(() => {
     fetch("/api/ai-management/categories")
@@ -61,6 +70,7 @@ export default function PlaygroundPage() {
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setSending(true);
+    setToolCalls([]);
 
     const selectedAgent = agents.find((a) => a.id === selectedAgentId);
     setDebugSteps([
@@ -79,9 +89,19 @@ export default function PlaygroundPage() {
       });
 
       if (response.ok) {
-        const data = (await response.json()) as { response?: string };
+        const data = (await response.json()) as {
+          response?: string;
+          toolCalls?: BackendToolCall[];
+        };
         const reply = data.response ?? "No response from the agent.";
         setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+        setToolCalls(data.toolCalls ?? []);
+        if ((data.toolCalls ?? []).length > 0) {
+          setDebugSteps((prev) => [
+            ...prev,
+            { label: `Tool Calls (${(data.toolCalls ?? []).length})`, detail: "Real tool executions returned by the runtime." },
+          ]);
+        }
         setDebugSteps((prev) => [
           ...prev,
           { label: "Final Response", detail: reply },
@@ -245,11 +265,47 @@ export default function PlaygroundPage() {
                   ))
                 )}
               </div>
+
+              {toolCalls.length > 0 && (
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Wrench className="size-3.5" />
+                    Executed tools
+                  </div>
+                  <div className="space-y-3">
+                    {toolCalls.map((call, i) => (
+                      <div key={i} className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">{call.name}</p>
+                          <span
+                            className={`text-xs font-medium ${
+                              call.status === "success" ? "text-emerald-600" : "text-destructive"
+                            }`}
+                          >
+                            {call.status}
+                          </span>
+                        </div>
+                        {call.status === "success" ? (
+                          <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-xs text-muted-foreground">
+                            {safeJson(call.result)}
+                          </pre>
+                        ) : (
+                          <p className="mt-2 text-xs text-destructive">
+                            {call.errorMessage ?? "Tool execution failed."}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {debugSteps.length > 0 && (
                 <div className="mt-4 flex items-center gap-2 rounded-lg border border-dashed p-2 text-xs text-muted-foreground">
                   <Info className="size-3.5 shrink-0" />
                   <span>
-                    Tool calls and RAG retrieval traces are not exposed by the agent runtime, so they are not shown here.
+                    Tool call telemetry is shown only for real tool executions
+                    returned by the agent runtime.
                   </span>
                 </div>
               )}
@@ -259,4 +315,20 @@ export default function PlaygroundPage() {
       </div>
     </div>
   );
+}
+
+function safeJson(value: unknown): string {
+  if (value === undefined || value === null) return "null";
+  if (typeof value === "string") {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }

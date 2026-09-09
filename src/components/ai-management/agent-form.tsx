@@ -11,6 +11,8 @@ import {
   ListChecks,
   Plus,
   Puzzle,
+  RefreshCw,
+  Save,
   Search,
 } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
@@ -194,9 +196,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     return false;
   })();
   const defaultVerifiedVoice =
-    filledVoiceRows.find(
-      (row) => row.isDefault && row.status.state === "ok",
-    ) ?? filledVoiceRows.find((row) => row.status.state === "ok");
+    filledVoiceRows.find((row) => row.isDefault && row.status.state === "ok") ??
+    filledVoiceRows.find((row) => row.status.state === "ok");
 
   function validateVoices(): string | null {
     if (filledVoiceRows.length === 0) {
@@ -262,7 +263,9 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
               isDefault: item.localId === verified[0]!.localId,
             }));
           }
-          if (!next.some((item) => item.isDefault && item.status.state === "ok")) {
+          if (
+            !next.some((item) => item.isDefault && item.status.state === "ok")
+          ) {
             const fallback = verified[0];
             if (fallback) {
               return next.map((item) => ({
@@ -282,7 +285,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                   ...item,
                   status: {
                     state: "error",
-                    detail: payload?.detail ?? "Voice ID could not be verified.",
+                    detail:
+                      payload?.detail ?? "Voice ID could not be verified.",
                   },
                 }
               : item,
@@ -374,12 +378,18 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   }
 
   const assignedTools = form.runtime.tools;
-  const availableTools = tools.filter((tool) => !assignedTools.includes(tool.id));
+  // Only active tools can be newly assigned (production rule). Already-assigned
+  // tools stay in the Assigned list even if later deactivated — the runtime
+  // never executes them, but the assignment is preserved for the admin.
+  const availableTools = tools.filter(
+    (tool) =>
+      !assignedTools.includes(tool.id) && tool.status === "active",
+  );
   const filteredTools = tools.filter((tool) => {
     const matchesView =
       toolView === "assigned"
         ? assignedTools.includes(tool.id)
-        : !assignedTools.includes(tool.id);
+        : !assignedTools.includes(tool.id) && tool.status === "active";
     const matchesSearch = `${tool.name} ${tool.description}`
       .toLowerCase()
       .includes(toolSearch.toLowerCase());
@@ -392,7 +402,9 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
   );
   const filteredKbs = knowledgeBases.filter((kb) => {
     const matchesView =
-      kbView === "assigned" ? assignedKbs.includes(kb.id) : !assignedKbs.includes(kb.id);
+      kbView === "assigned"
+        ? assignedKbs.includes(kb.id)
+        : !assignedKbs.includes(kb.id);
     const matchesSearch = `${kb.name} ${kb.description}`
       .toLowerCase()
       .includes(kbSearch.toLowerCase());
@@ -470,16 +482,17 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
     return Object.keys(next).length === 0;
   }
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (currentStep < STEP_COUNT) return;
+  async function saveAgent(options?: { toolsOnly?: boolean }) {
+    const toolsOnly = options?.toolsOnly === true;
     const voiceError = validateVoices();
     if (voiceError) {
-      setCurrentStep(3);
-      setErrors((cur) => ({
-        ...cur,
-        voice_id: voiceError,
-      }));
+      if (!toolsOnly) {
+        setCurrentStep(3);
+        setErrors((cur) => ({
+          ...cur,
+          voice_id: voiceError,
+        }));
+      }
       return;
     }
     if (!validate()) return;
@@ -546,8 +559,17 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
 
       if (!response.ok) {
         setErrors(data.errors ?? {});
-        notifyError(data.error ?? "Failed to save agent.");
-        return;
+        if (toolsOnly) {
+          notifyError(data.error ?? "Failed to save tool configuration.");
+        } else {
+          notifyError(data.error ?? "Failed to save agent.");
+        }
+        return false;
+      }
+
+      if (toolsOnly) {
+        notifySuccess("Tool configuration saved.");
+        return true;
       }
 
       if (isEdit) {
@@ -558,11 +580,55 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
         router.push(`/ai-management/agents/${data.agent.id}`);
         router.refresh();
       }
+      return true;
     } catch {
-      notifyError("Failed to save agent.");
+      if (toolsOnly) {
+        notifyError("Failed to save tool configuration.");
+      } else {
+        notifyError("Failed to save agent.");
+      }
+      return false;
     } finally {
       setPending(false);
     }
+  }
+
+  async function reloadAssignments() {
+    if (!agentId) return;
+    try {
+      const response = await fetch(`/api/agents/${agentId}`);
+      if (!response.ok) return;
+      const data = (await response.json()) as { agent?: Agent };
+      const freshAgent = data.agent;
+      if (!freshAgent) return;
+      const config =
+        freshAgent.configuration && typeof freshAgent.configuration === "object"
+          ? freshAgent.configuration
+          : {};
+      const freshTools = Array.isArray(config.tools)
+        ? config.tools.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
+      const freshKbs = Array.isArray(config.knowledge_base_ids)
+        ? config.knowledge_base_ids.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
+      updateRuntime({
+        tools: freshTools,
+        knowledge_base_ids: freshKbs,
+      });
+      notifySuccess("Tool assignments reloaded.");
+    } catch {
+      notifyError("Failed to reload tool assignments.");
+    }
+  }
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (currentStep < STEP_COUNT) return;
+    await saveAgent();
   }
 
   const canSave = !pending && allFilledVoicesVerified && !hasDuplicateVoiceIds;
@@ -613,9 +679,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           id="name"
           name="name"
           value={form.name}
-          onChange={(e) =>
-            setForm((cur) => ({ ...cur, name: e.target.value }))
-          }
+          onChange={(e) => setForm((cur) => ({ ...cur, name: e.target.value }))}
           placeholder="e.g., Cricket"
           aria-invalid={Boolean(errors.name)}
           required
@@ -641,9 +705,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           aria-invalid={Boolean(errors.description)}
         />
         {errors.description && (
-          <p className="text-sm text-destructive">
-            {errors.description}
-          </p>
+          <p className="text-sm text-destructive">{errors.description}</p>
         )}
       </div>
 
@@ -666,9 +728,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             <option value="published">Published</option>
           </NativeSelect>
           <p className="text-xs text-muted-foreground">
-            Published agents are eligible for production routing.
-            Draft and unpublished agents can be tested from the
-            Admin.
+            Published agents are eligible for production routing. Draft and
+            unpublished agents can be tested from the Admin.
           </p>
         </div>
 
@@ -682,8 +743,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
               onClick={() =>
                 setForm((cur) => ({
                   ...cur,
-                  status:
-                    cur.status === "active" ? "inactive" : "active",
+                  status: cur.status === "active" ? "inactive" : "active",
                 }))
               }
               className="inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-input bg-muted px-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[checked=true]:bg-primary"
@@ -699,8 +759,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Inactive agents do not route production traffic even
-            when published.
+            Inactive agents do not route production traffic even when published.
           </p>
         </div>
       </div>
@@ -716,9 +775,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             id="model"
             name="model"
             value={form.runtime.model}
-            onChange={(e) =>
-              updateRuntime({ model: e.target.value })
-            }
+            onChange={(e) => updateRuntime({ model: e.target.value })}
           >
             {AI_MODELS.map((model) => (
               <option key={model.value} value={model.value}>
@@ -746,9 +803,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
             aria-invalid={Boolean(errors.temperature)}
           />
           {errors.temperature && (
-            <p className="text-sm text-destructive">
-              {errors.temperature}
-            </p>
+            <p className="text-sm text-destructive">{errors.temperature}</p>
           )}
         </div>
       </div>
@@ -800,13 +855,11 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
         className="min-h-96 font-mono text-sm leading-relaxed"
       />
       {errors.instructions ? (
-        <p className="text-sm text-destructive">
-          {errors.instructions}
-        </p>
+        <p className="text-sm text-destructive">{errors.instructions}</p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Manual instructions are the source of truth for this
-          agent&apos;s behavior.
+          Manual instructions are the source of truth for this agent&apos;s
+          behavior.
         </p>
       )}
     </div>
@@ -828,8 +881,8 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           {tools.length === 0 ? (
             <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-6 text-sm text-muted-foreground">
               <ListChecks className="size-4" />
-              No tools available. Tools are registered and managed
-              in the backend.
+              No tools configured yet. Tools appear once they are registered in
+              the Mastra backend.
             </div>
           ) : (
             <>
@@ -873,7 +926,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
               {filteredTools.length === 0 ? (
                 <div className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
                   {toolView === "assigned"
-                    ? "No tools assigned to this agent."
+                    ? "No tools assigned. Assign tools to enable tool-based actions."
                     : "No available tools match your search."}
                 </div>
               ) : (
@@ -898,9 +951,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                         type="button"
                         size="sm"
                         variant={
-                          toolView === "assigned"
-                            ? "outline"
-                            : "default"
+                          toolView === "assigned" ? "outline" : "default"
                         }
                         onClick={() => toggleTool(tool.id)}
                       >
@@ -918,6 +969,35 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                   ))}
                 </ul>
               )}
+
+              <Separator className="my-4" />
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Saving persists the tool assignments for this agent.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void reloadAssignments()}
+                    disabled={pending || !isEdit}
+                  >
+                    <RefreshCw className="size-3.5" />
+                    Reload
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void saveAgent({ toolsOnly: true })}
+                    disabled={pending || !isEdit}
+                  >
+                    <Save className="size-3.5" />
+                    Save Tool Configuration
+                  </Button>
+                </div>
+              </div>
             </>
           )}
         </CardContent>
@@ -1009,11 +1089,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                       <Button
                         type="button"
                         size="sm"
-                        variant={
-                          kbView === "assigned"
-                            ? "outline"
-                            : "default"
-                        }
+                        variant={kbView === "assigned" ? "outline" : "default"}
                         onClick={() => toggleKnowledgeBase(kb.id)}
                       >
                         {kbView === "assigned" ? (
@@ -1038,9 +1114,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>RAG Configuration</CardTitle>
-          <CardDescription>
-            Retrieval settings for this agent.
-          </CardDescription>
+          <CardDescription>Retrieval settings for this agent.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           <div className="flex items-center justify-between">
@@ -1054,9 +1128,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
               type="button"
               role="switch"
               aria-checked={form.runtime.rag.enabled}
-              onClick={() =>
-                updateRag({ enabled: !form.runtime.rag.enabled })
-              }
+              onClick={() => updateRag({ enabled: !form.runtime.rag.enabled })}
               className="inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-input bg-muted px-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[checked=true]:bg-primary"
               data-checked={form.runtime.rag.enabled}
             >
@@ -1079,9 +1151,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                 min={1}
                 max={20}
                 value={form.runtime.rag.top_k}
-                onChange={(e) =>
-                  updateRag({ top_k: Number(e.target.value) })
-                }
+                onChange={(e) => updateRag({ top_k: Number(e.target.value) })}
               />
             </div>
             <div className="space-y-2">
@@ -1104,8 +1174,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Retrieval only uses knowledge bases assigned to this
-            agent.
+            Retrieval only uses knowledge bases assigned to this agent.
           </p>
         </CardContent>
       </Card>
@@ -1159,7 +1228,9 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
               .then(setCategories)
               .catch((err) =>
                 setCategoriesError(
-                  err instanceof Error ? err.message : "Could not load categories.",
+                  err instanceof Error
+                    ? err.message
+                    : "Could not load categories.",
                 ),
               );
           }}
@@ -1175,7 +1246,10 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       ) : (
         <Card>
           <CardHeader className="border-b">
-            <nav aria-label="Agent setup steps" className="-mx-1 overflow-x-auto px-1 pb-1">
+            <nav
+              aria-label="Agent setup steps"
+              className="-mx-1 overflow-x-auto px-1 pb-1"
+            >
               <ol className="flex min-w-max items-center gap-2">
                 {STEPS.map((label, index) => {
                   const step = index + 1;
@@ -1215,7 +1289,10 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                         <span className="whitespace-nowrap">{label}</span>
                       </button>
                       {step < STEP_COUNT && (
-                        <span className="h-px w-8 bg-border" aria-hidden="true" />
+                        <span
+                          className="h-px w-8 bg-border"
+                          aria-hidden="true"
+                        />
                       )}
                     </li>
                   );
@@ -1255,7 +1332,10 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
                     <Button
                       type="button"
                       onClick={handleNext}
-                      disabled={pending || (currentStep === 3 && !allFilledVoicesVerified)}
+                      disabled={
+                        pending ||
+                        (currentStep === 3 && !allFilledVoicesVerified)
+                      }
                     >
                       Next
                       <ArrowRight className="size-4" />

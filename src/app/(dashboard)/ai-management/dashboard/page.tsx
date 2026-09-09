@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bot, Braces, Database, FileText, MessageSquareText, Puzzle, Search, Settings2, Sparkles, Workflow } from "lucide-react";
+import { Bot, Braces, Database, FileText, MessageSquareText, Puzzle, Search, Settings2, Sparkles, Workflow, Wrench } from "lucide-react";
 import { AiPageHeader } from "@/components/ai-management/ai-page-header";
 import { AIStatsCard } from "@/components/ai-management/ai-stats-card";
 import { AIEmptyState } from "@/components/ai-management/ai-empty-state";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AgentsStoreError, getAgentDashboardStats } from "@/lib/agents/store";
 import { listCategories, listTools, DEFAULT_ORGANIZATION_ID } from "@/lib/ai-management/store";
-import { countConversationsSince } from "@/lib/ai-management/conversations-store";
+import { countConversationsSince, countToolCalls } from "@/lib/ai-management/conversations-store";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
 export default async function AiDashboardPage() {
@@ -18,6 +18,7 @@ export default async function AiDashboardPage() {
   let toolsCount = 0;
   let activeToolsCount = 0;
   let todayConversationsCount = 0;
+  let toolCallsCount: number | null = null;
   let errorMessage: string | null = null;
 
   if (isSupabaseAdminConfigured()) {
@@ -48,6 +49,11 @@ export default async function AiDashboardPage() {
       );
     } catch {
       // Conversation tables may not exist yet
+    }
+    try {
+      toolCallsCount = await countToolCalls(DEFAULT_ORGANIZATION_ID);
+    } catch {
+      // Telemetry table may not exist yet
     }
   } else {
     errorMessage = "Supabase service role is not configured.";
@@ -123,6 +129,16 @@ export default async function AiDashboardPage() {
               value={todayConversationsCount}
               description="Conversations created today"
               icon={MessageSquareText}
+            />
+            <AIStatsCard
+              label="Tool Calls"
+              value={toolCallsCount === null ? "—" : toolCallsCount}
+              description={
+                toolCallsCount === null
+                  ? "No execution telemetry recorded"
+                  : "Backend tool executions"
+              }
+              icon={Wrench}
             />
             <AIStatsCard
               label="RAG Searches"

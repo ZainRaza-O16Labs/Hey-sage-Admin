@@ -104,7 +104,7 @@ export async function invalidateAgentRuntimeCache(
 export async function testAgentChat(
   agentId: string,
   message: string,
-): Promise<string> {
+): Promise<{ reply: string; toolCalls: BackendToolCall[] }> {
   const secret = getInternalSecret();
   if (!secret) {
     throw new AgentsStoreError(
@@ -137,6 +137,7 @@ export async function testAgentChat(
   const payload = (await response.json().catch(() => ({}))) as {
     reply?: string;
     error?: string;
+    toolCalls?: unknown[];
   };
   if (!response.ok) {
     throw new AgentsStoreError(
@@ -147,5 +148,27 @@ export async function testAgentChat(
   if (typeof payload.reply !== "string" || !payload.reply) {
     throw new AgentsStoreError("Agent returned an empty response.", 502);
   }
-  return payload.reply;
+  return {
+    reply: payload.reply,
+    toolCalls: (payload.toolCalls ?? []).filter(isBackendToolCall),
+  };
+}
+
+export type BackendToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+  status: "success" | "error";
+  result?: unknown;
+  errorMessage?: string;
+};
+
+function isBackendToolCall(value: unknown): value is BackendToolCall {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.name === "string" &&
+    record.args !== null &&
+    typeof record.args === "object" &&
+    (record.status === "success" || record.status === "error")
+  );
 }

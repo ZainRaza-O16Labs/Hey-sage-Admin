@@ -47,16 +47,15 @@ export class AgentsStoreError extends Error {
 
 export function requireStore() {
   if (!isSupabaseAdminConfigured()) {
-    throw new AgentsStoreError(
-      "Supabase service role is not configured.",
-      503,
-    );
+    throw new AgentsStoreError("Supabase service role is not configured.", 503);
   }
   return createAdminClient();
 }
 
 function isMissingRelation(message: string) {
-  return /could not find the table/i.test(message) || /schema cache/i.test(message);
+  return (
+    /could not find the table/i.test(message) || /schema cache/i.test(message)
+  );
 }
 
 export async function listAgents(): Promise<Agent[]> {
@@ -97,7 +96,78 @@ export async function getAgent(id: string): Promise<Agent | null> {
     throw new AgentsStoreError(error.message);
   }
 
-  return data ? mapAgentRow(data as Record<string, unknown>) : null;
+  if (!data) return null;
+
+  // Merge relational assignments (ai_agent_tools / ai_agent_knowledge_bases)
+  // into the agent so the edit form reloads the real runtime assignments.
+  // The agent form mirrors both sources of truth: the config JSON drives the
+  // UI step, the join tables drive the runtime resolver.
+  const agent = mapAgentRow(data as Record<string, unknown>);
+
+  try {
+    const [toolRows, kbRows] = await Promise.all([
+      supabase.from("ai_agent_tools").select("tool_id").eq("agent_id", id),
+      supabase
+        .from("ai_agent_knowledge_bases")
+        .select("knowledge_base_id")
+        .eq("agent_id", id),
+    ]);
+    if (!toolRows.error || isMissingRelation(toolRows.error.message)) {
+      const assignedToolIds = (toolRows.data ?? [])
+        .map((row) => String((row as { tool_id?: string }).tool_id ?? ""))
+        .filter(Boolean);
+      const config = {
+        ...(agent.configuration ?? {}),
+        ...(assignedToolIds.length > 0
+          ? {
+              tools: [
+                ...new Set([
+                  ...configStringArray(agent.configuration, "tools"),
+                  ...assignedToolIds,
+                ]),
+              ],
+            }
+          : {}),
+      };
+      agent.configuration = config;
+    }
+    if (!kbRows.error || isMissingRelation(kbRows.error.message)) {
+      const assignedKbIds = (kbRows.data ?? [])
+        .map((row) =>
+          String(
+            (row as { knowledge_base_id?: string }).knowledge_base_id ?? "",
+          ),
+        )
+        .filter(Boolean);
+      if (assignedKbIds.length > 0) {
+        agent.configuration = {
+          ...agent.configuration,
+          knowledge_base_ids: [
+            ...new Set([
+              ...configStringArray(agent.configuration, "knowledge_base_ids"),
+              ...assignedKbIds,
+            ]),
+          ],
+        };
+      }
+    }
+  } catch (mergeError) {
+    // Merge is best-effort; never fail agent loading because assignments
+    // could not be read back.
+    console.warn("[agents] assignment merge failed", mergeError);
+  }
+
+  return agent;
+}
+
+function configStringArray(
+  configuration: Record<string, unknown> | undefined,
+  key: string,
+): string[] {
+  const value = configuration?.[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 export async function createAgent(input: AgentInput): Promise<Agent> {
@@ -130,7 +200,10 @@ export async function createAgent(input: AgentInput): Promise<Agent> {
   return mapAgentRow(data as Record<string, unknown>);
 }
 
-export async function updateAgent(id: string, patch: AgentPatch): Promise<Agent> {
+export async function updateAgent(
+  id: string,
+  patch: AgentPatch,
+): Promise<Agent> {
   const supabase = requireStore();
   const payload: Record<string, unknown> = { ...patch };
   delete payload.voices;

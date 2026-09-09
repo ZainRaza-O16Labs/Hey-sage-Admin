@@ -250,6 +250,12 @@ function parseAgentVoiceInputs(
   if (voices.length === 0) {
     return { ok: false, error: "At least one verified voice is required." };
   }
+  if (voices.length > 1) {
+    return {
+      ok: false,
+      error: "Only one voice is supported per agent. Remove the extra voices.",
+    };
+  }
   if (!voices.some((voice) => voice.is_default)) {
     voices[0]!.is_default = true;
   }

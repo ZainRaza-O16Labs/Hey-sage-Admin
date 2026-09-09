@@ -31,8 +31,8 @@ export async function POST(request: Request) {
   if (!message) return jsonError("Message is required.", 400);
 
   try {
-    const reply = await testAgentChat(agentId, message);
-    return NextResponse.json({ reply, response: reply });
+    const { reply, toolCalls } = await testAgentChat(agentId, message);
+    return NextResponse.json({ reply, response: reply, toolCalls });
   } catch (error) {
     return storeErrorResponse(error);
   }

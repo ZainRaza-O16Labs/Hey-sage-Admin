@@ -3,6 +3,7 @@ import { createAgent, listAgents } from "@/lib/agents/store";
 import { getAgentDocumentCounts } from "@/lib/agents/documents";
 import { validateAgentInput } from "@/lib/agents/schema";
 import { listAgentVoices, replaceAgentVoices } from "@/lib/agents/voices";
+import { syncAgentAssignments } from "@/lib/ai-management/store";
 import {
   jsonError,
   requireApiUser,
@@ -15,9 +16,10 @@ export async function GET() {
 
   try {
     const agents = await listAgents();
-    const documentCounts: Record<string, number> = await getAgentDocumentCounts().catch(
-      () => ({} as Record<string, number>),
-    );
+    const documentCounts: Record<string, number> =
+      await getAgentDocumentCounts().catch(
+        () => ({}) as Record<string, number>,
+      );
     return NextResponse.json({
       agents: agents.map((agent) => ({
         ...agent,
@@ -47,6 +49,28 @@ export async function POST(request: Request) {
 
   try {
     const agent = await createAgent(parsed.data);
+
+    // Persist the relational tool + knowledge-base assignments when the config
+    // carries them, mirroring the PATCH route (the agent form always mirrors
+    // both sources of truth).
+    const configuration = parsed.data.configuration;
+    if (configuration && typeof configuration === "object") {
+      const toolIds = Array.isArray(configuration.tools)
+        ? configuration.tools.filter((t): t is string => typeof t === "string")
+        : [];
+      const knowledgeBaseIds = Array.isArray(configuration.knowledge_base_ids)
+        ? configuration.knowledge_base_ids.filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [];
+      if (
+        Array.isArray(configuration.tools) ||
+        Array.isArray(configuration.knowledge_base_ids)
+      ) {
+        await syncAgentAssignments(agent.id, { toolIds, knowledgeBaseIds });
+      }
+    }
+
     let voices = [] as Awaited<ReturnType<typeof listAgentVoices>>;
     if (parsed.data.voices?.length) {
       voices = await replaceAgentVoices(agent.id, parsed.data.voices);

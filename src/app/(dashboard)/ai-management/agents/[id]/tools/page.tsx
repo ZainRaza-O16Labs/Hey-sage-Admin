@@ -135,7 +135,7 @@ export default function AgentToolsPage({
       if (data.agent) {
         setAgent(data.agent);
       }
-      notifySuccess("Tool configuration saved successfully.");
+      notifySuccess("Tool configuration saved.");
     } catch {
       notifyError("Network error. Try again.");
     } finally {
@@ -195,8 +195,8 @@ export default function AgentToolsPage({
           {tools.length === 0 ? (
             <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-6 text-sm text-muted-foreground">
               <Puzzle className="size-4" />
-              No tools available. Tools are registered and managed in the
-              backend.
+              No tools configured yet. Tools appear once they are registered in
+              the Mastra backend.
             </div>
           ) : (
             <>
@@ -236,7 +236,7 @@ export default function AgentToolsPage({
               {filtered.length === 0 ? (
                 <div className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
                   {filter === "assigned"
-                    ? "No tools assigned to this agent."
+                    ? "No tools assigned. Assign tools to enable tool-based actions."
                     : filter === "available"
                       ? "No available tools match your search."
                       : "No tools match your search."}

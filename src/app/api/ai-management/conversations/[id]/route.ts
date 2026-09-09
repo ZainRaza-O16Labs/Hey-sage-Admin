@@ -3,6 +3,7 @@ import {
   deleteConversation,
   getConversation,
   listConversationMessages,
+  listConversationToolCalls,
 } from "@/lib/ai-management/conversations-store";
 import {
   jsonError,
@@ -27,7 +28,8 @@ export async function GET(_request: Request, context: RouteContext) {
     const conversation = await getConversation(DEFAULT_ORGANIZATION_ID, id);
     if (!conversation) return jsonError("Conversation not found.", 404);
     const messages = await listConversationMessages(id);
-    return NextResponse.json({ conversation, messages });
+    const toolCalls = await listConversationToolCalls(id);
+    return NextResponse.json({ conversation, messages, toolCalls });
   } catch (error) {
     return storeErrorResponse(error);
   }

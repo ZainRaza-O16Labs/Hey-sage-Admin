@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bot, User, MessageSquare, Trash2 } from "lucide-react";
+import { Bot, User, MessageSquare, Trash2, Wrench, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,17 @@ type ConversationMessage = {
   created_at: string;
 };
 
+type ConversationToolCall = {
+  id: string;
+  tool_key: string;
+  tool_name: string;
+  input: Record<string, unknown>;
+  status: "success" | "error";
+  output: unknown | null;
+  error_message: string | null;
+  created_at: string;
+};
+
 type Conversation = {
   id: string;
   agent_id: string;
@@ -37,6 +48,14 @@ type Conversation = {
   updated_at: string;
 };
 
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 export default function ConversationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -44,6 +63,9 @@ export default function ConversationDetailPage() {
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [toolCalls, setToolCalls] = useState<ConversationToolCall[]>([]);
+  const [toolCallsLoaded, setToolCallsLoaded] = useState(false);
+  const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -61,10 +83,12 @@ export default function ConversationDetailPage() {
         }
         return r.json();
       })
-      .then((data: { conversation?: Conversation; messages?: ConversationMessage[] }) => {
+      .then((data: { conversation?: Conversation; messages?: ConversationMessage[]; toolCalls?: ConversationToolCall[] }) => {
         if (!active) return;
         setConversation(data.conversation ?? null);
         setMessages(data.messages ?? []);
+        setToolCalls(data.toolCalls ?? []);
+        setToolCallsLoaded(true);
       })
       .catch((caught: Error) => {
         if (!active) return;
@@ -214,6 +238,105 @@ export default function ConversationDetailPage() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Wrench className="size-4 text-muted-foreground" />
+            <CardTitle>Tool Calls</CardTitle>
+          </div>
+          <CardDescription>
+            Backend tool executions recorded for this conversation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!toolCallsLoaded ? (
+            <p className="py-4 text-sm text-muted-foreground">Loading tool telemetry…</p>
+          ) : toolCalls.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Wrench className="mb-3 size-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No tool calls recorded</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                No backend tool executions were observed for this conversation.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {toolCalls.map((toolCall) => {
+                const isExpanded = expandedToolCalls.has(toolCall.id);
+                return (
+                  <li key={toolCall.id}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedToolCalls((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(toolCall.id)) {
+                            next.delete(toolCall.id);
+                          } else {
+                            next.add(toolCall.id);
+                          }
+                          return next;
+                        })
+                      }
+                      className="flex w-full items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-left transition-colors hover:bg-muted"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium">
+                            {toolCall.tool_name || toolCall.tool_key}
+                          </span>
+                          <code className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                            {toolCall.tool_key}
+                          </code>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {new Date(toolCall.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <Badge variant={toolCall.status === "success" ? "secondary" : "destructive"}>
+                        {toolCall.status}
+                      </Badge>
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-1 space-y-2 rounded-lg border border-dashed p-3 text-xs">
+                        <div>
+                          <p className="mb-1 font-medium text-muted-foreground">Input</p>
+                          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono text-xs">
+                            {safeJson(toolCall.input)}
+                          </pre>
+                        </div>
+                        {toolCall.status === "success" ? (
+                          <div>
+                            <p className="mb-1 font-medium text-muted-foreground">Output</p>
+                            <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono text-xs">
+                              {toolCall.output === null || toolCall.output === undefined
+                                ? "No output recorded."
+                                : safeJson(toolCall.output)}
+                            </pre>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="mb-1 font-medium text-muted-foreground">Error</p>
+                            <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-destructive/10 p-2 font-mono text-xs text-destructive">
+                              {toolCall.error_message ?? "Unknown error."}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>

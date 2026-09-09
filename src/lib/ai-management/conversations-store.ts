@@ -51,7 +51,7 @@ export async function listConversations(input: {
   let query = supabase
     .from("conversations")
     .select(
-      "id, organization_id, user_id, session_id, agent_id, created_at, updated_at, agents(name), agents(category_id), agents(ai_categories(name))",
+      "id, organization_id, user_id, session_id, agent_id, created_at, updated_at, agents(name, category_id, ai_categories(name))",
     )
     .eq("organization_id", input.organizationId)
     .order("updated_at", { ascending: false })
@@ -146,6 +146,38 @@ export async function countConversationsSince(
   return count ?? 0;
 }
 
+/**
+ * Count backend tool-call executions for an organization (real runtime
+ * telemetry persisted to conversation_tool_calls). Returns null when the
+ * telemetry table is not yet installed so callers can show an honest "no
+ * telemetry" state instead of a fabricated zero.
+ */
+export async function countToolCalls(
+  organizationId: string,
+  sinceIso?: string,
+): Promise<number | null> {
+  const supabase = requireStore();
+  let query = supabase
+    .from("conversation_tool_calls")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+  if (sinceIso) {
+    query = query.gte("created_at", sinceIso);
+  }
+  const { count, error } = await query;
+  if (error) {
+    if (
+      /could not find the table|relation .* does not exist|schema cache/i.test(
+        error.message,
+      )
+    ) {
+      return null;
+    }
+    throw new AiManagementStoreError(error.message);
+  }
+  return count ?? 0;
+}
+
 export async function getConversation(
   organizationId: string,
   id: string,
@@ -154,7 +186,7 @@ export async function getConversation(
   const { data, error } = await supabase
     .from("conversations")
     .select(
-      "id, organization_id, user_id, session_id, agent_id, created_at, updated_at, agents(name), agents(category_id), agents(ai_categories(name))",
+      "id, organization_id, user_id, session_id, agent_id, created_at, updated_at, agents(name, category_id, ai_categories(name))",
     )
     .eq("id", id)
     .eq("organization_id", organizationId)
@@ -188,6 +220,65 @@ export async function listConversationMessages(
     conversation_id: String(row.conversation_id),
     role: row.role === "assistant" ? "assistant" : "user",
     content: String(row.content ?? ""),
+    created_at: String(row.created_at ?? ""),
+  }));
+}
+
+export type AiConversationToolCall = {
+  id: string;
+  organization_id: string;
+  conversation_id: string;
+  agent_id: string | null;
+  tool_key: string;
+  tool_name: string;
+  input: Record<string, unknown>;
+  status: "success" | "error";
+  output: unknown | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+/**
+ * List real tool-call telemetry for a conversation. Best-effort: returns an
+ * empty array (not an error) when the telemetry table is not installed, so the
+ * detail page can show an honest "no telemetry" state.
+ */
+export async function listConversationToolCalls(
+  conversationId: string,
+  limit = 100,
+): Promise<AiConversationToolCall[]> {
+  const supabase = requireStore();
+  const { data, error } = await supabase
+    .from("conversation_tool_calls")
+    .select(
+      "id, organization_id, conversation_id, agent_id, tool_key, tool_name, input, status, output, error_message, created_at",
+    )
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 500));
+  if (error) {
+    if (
+      /could not find the table|relation .* does not exist|schema cache/i.test(
+        error.message,
+      )
+    ) {
+      return [];
+    }
+    throw new AiManagementStoreError(error.message);
+  }
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    organization_id: String(row.organization_id ?? ""),
+    conversation_id: String(row.conversation_id ?? ""),
+    agent_id: typeof row.agent_id === "string" ? row.agent_id : null,
+    tool_key: String(row.tool_key ?? ""),
+    tool_name: String(row.tool_name ?? ""),
+    input: (row.input && typeof row.input === "object")
+      ? (row.input as Record<string, unknown>)
+      : {},
+    status: row.status === "error" ? "error" : "success",
+    output: row.output ?? null,
+    error_message: typeof row.error_message === "string" ? row.error_message : null,
     created_at: String(row.created_at ?? ""),
   }));
 }

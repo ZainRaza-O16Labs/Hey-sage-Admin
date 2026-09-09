@@ -172,7 +172,7 @@ export type AiToolConfig = {
 };
 
 const TOOL_COLUMNS =
-  "id, organization_id, name, tool_key, description, status, config, created_at, updated_at";
+  "id, organization_id, name, tool_key, description, status, created_at, updated_at";
 
 export function mapToolRow(row: Record<string, unknown>): AiToolConfig {
   return {
@@ -252,6 +252,27 @@ export async function listAgentsByTool(toolId: string): Promise<Array<{
     }
   }
   return agents;
+}
+
+/** Toggle a tool's status (active/inactive), scoped to the default org. */
+export async function updateToolStatus(
+  id: string,
+  status: "active" | "inactive",
+): Promise<AiToolConfig> {
+  const { data, error } = await requireStore()
+    .from("ai_tools")
+    .update({ status })
+    .eq("id", id)
+    .eq("organization_id", DEFAULT_ORGANIZATION_ID)
+    .select(TOOL_COLUMNS)
+    .single();
+  if (error || !data) {
+    if (!error && !data) {
+      throw new AiManagementStoreError("Tool not found.", 404);
+    }
+    throw storeError(error ?? { message: "Could not update tool." });
+  }
+  return mapToolRow(data as Record<string, unknown>);
 }
 
 export async function _getToolIdsByAgent(agentId: string): Promise<string[]> {

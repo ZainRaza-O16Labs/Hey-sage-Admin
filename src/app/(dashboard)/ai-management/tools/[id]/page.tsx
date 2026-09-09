@@ -63,7 +63,17 @@ export default async function ToolDetailPage({ params }: { params: RouteParams }
           <div className="flex items-center gap-3 rounded-lg border border-dashed p-3">
             <Badge variant="outline">Backend Managed</Badge>
             <p className="text-xs text-muted-foreground">
-              Tool implementation is managed by the Mastra backend. This page controls configuration and assignment only.
+              Backend implementation is managed by developers. This page controls tool configuration and assignment only.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+            <Badge variant={tool.status === "active" ? "default" : "secondary"}>
+              {tool.status === "active" ? "Available at runtime" : "Not available at runtime"}
+            </Badge>
+            <p className="text-xs text-muted-foreground">
+              {tool.status === "active"
+                ? "This tool is active and executes for assigned agents that have access."
+                : "This tool is inactive. Assigned agents keep the assignment, but the tool is never executed."}
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -90,9 +100,9 @@ export default async function ToolDetailPage({ params }: { params: RouteParams }
               <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Puzzle className="size-5" />
               </div>
-              <p className="text-sm font-medium">No agents assigned</p>
+              <p className="text-sm font-medium">No tools assigned</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Assign this tool to an agent from the agent&apos;s General tab.
+                Assign this tool to an agent from the agent&apos;s Tools tab.
               </p>
             </div>
           ) : (

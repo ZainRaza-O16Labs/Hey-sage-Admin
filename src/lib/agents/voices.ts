@@ -217,6 +217,19 @@ export async function setDefaultAgentVoice(
 }
 
 function normalizeVoiceInputs(voices: AgentVoiceInput[]): AgentVoiceInput[] {
+  const cleaned = cleanedVoiceInputs(voices);
+
+  if (cleaned.length > 1) {
+    throw new AgentsStoreError(
+      "Only one voice is supported per agent. Remove the extra voices.",
+      400,
+    );
+  }
+
+  return cleaned;
+}
+
+function cleanedVoiceInputs(voices: AgentVoiceInput[]): AgentVoiceInput[] {
   const seen = new Set<string>();
   const cleaned: AgentVoiceInput[] = [];
 
@@ -253,11 +266,9 @@ function normalizeVoiceInputs(voices: AgentVoiceInput[]): AgentVoiceInput[] {
   if (defaultCount === 0) {
     cleaned[0]!.is_default = true;
   } else if (defaultCount > 1) {
-    let kept = false;
     for (const voice of cleaned) {
-      if (voice.is_default && !kept) {
-        kept = true;
-      } else {
+      if (!voice.is_default) continue;
+      if (voice !== cleaned[0]) {
         voice.is_default = false;
       }
     }
