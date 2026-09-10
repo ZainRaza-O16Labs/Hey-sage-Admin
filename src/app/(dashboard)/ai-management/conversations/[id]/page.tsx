@@ -124,7 +124,7 @@ export default function ConversationDetailPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <AiPageHeader title="Conversation Detail" description="Loading…" />
         <AISkeleton />
       </div>
@@ -133,7 +133,7 @@ export default function ConversationDetailPage() {
 
   if (error === "not-found" || !conversation) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <BackNav href="/ai-management/conversations" label="Conversations" />
         <AiPageHeader
           title="Conversation Detail"
@@ -149,7 +149,7 @@ export default function ConversationDetailPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav href="/ai-management/conversations" label="Conversations" />
       <AiPageHeader
         title="Conversation Detail"

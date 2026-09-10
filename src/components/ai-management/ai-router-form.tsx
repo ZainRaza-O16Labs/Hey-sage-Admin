@@ -65,40 +65,58 @@ export function AiRouterForm({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-2">
-        <Label htmlFor="parent-name">Name</Label>
+    <div className="space-y-7">
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-sm font-medium">Identity</h3>
+          <p className="mt-1 text-sm text-muted-foreground">This name is shown to administrators when reviewing routing activity.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="parent-name">Router name</Label>
         <Input
           id="parent-name"
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
+          placeholder="e.g. Main support coordinator"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="parent-description">Description</Label>
+        <Label htmlFor="parent-description">Purpose</Label>
         <Input
           id="parent-description"
           value={form.description}
           onChange={(event) => setForm({ ...form, description: event.target.value })}
+          placeholder="A brief description of this router’s responsibility"
         />
       </div>
+      </section>
 
-      <div className="space-y-2">
+      <section className="space-y-4 border-t pt-6">
+        <div>
+          <h3 className="text-sm font-medium">Routing guidance</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Tell the router how to identify the right category and specialist for each request.</p>
+        </div>
+        <div className="space-y-2">
         <Label htmlFor="parent-instructions">Instructions</Label>
         <Textarea
           id="parent-instructions"
-          rows={14}
+          rows={11}
           value={form.instructions}
           onChange={(event) => setForm({ ...form, instructions: event.target.value })}
-          placeholder="Describe how the AI Router should coordinate configured categories and agents."
+          placeholder="Identify the most appropriate category for each request, then select an active specialist agent. Ask a clarifying question when the request cannot be safely classified."
         />
-      </div>
+        <p className="text-xs text-muted-foreground">Include routing boundaries, priority rules, and what to do when a request is ambiguous.</p>
+        </div>
+      </section>
 
-      <div className="space-y-4">
-        <p className="text-sm font-medium">Routing</p>
+      <section className="space-y-4 border-t pt-6">
+        <div>
+          <h3 className="text-sm font-medium">Runtime behavior</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Control automatic delegation and the recovery path for unmatched requests.</p>
+        </div>
 
-        <div className="flex items-center gap-3">
+        <label htmlFor="automatic-routing" className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
           <input
             id="automatic-routing"
             type="checkbox"
@@ -106,10 +124,14 @@ export function AiRouterForm({
             onChange={(event) => setForm({ ...form, automatic_routing: event.target.checked })}
             className="size-4 accent-primary"
           />
-          <Label htmlFor="automatic-routing">Automatic agent routing</Label>
-        </div>
+          <span>
+            <span className="block text-sm font-medium">Automatic agent routing</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Let the router delegate directly to the best matching active agent.</span>
+          </span>
+        </label>
 
-        <div className="max-w-xs space-y-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
           <Label htmlFor="fallback-agent">Fallback agent</Label>
           <NativeSelect
             id="fallback-agent"
@@ -125,9 +147,10 @@ export function AiRouterForm({
               </option>
             ))}
           </NativeSelect>
+          <p className="text-xs text-muted-foreground">Used when no specialist can be selected.</p>
         </div>
 
-        <div className="max-w-xs space-y-2">
+        <div className="space-y-2">
           <Label htmlFor="parent-status">Status</Label>
           <NativeSelect
             id="parent-status"
@@ -137,12 +160,17 @@ export function AiRouterForm({
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </NativeSelect>
+          <p className="text-xs text-muted-foreground">Inactive routers cannot receive new requests.</p>
         </div>
-      </div>
+        </div>
+      </section>
 
+      <div className="flex items-center justify-between border-t pt-5">
+        <p className="text-xs text-muted-foreground">Changes apply to future routed conversations.</p>
       <Button onClick={save} disabled={loading}>
         {loading ? "Saving..." : "Save Changes"}
       </Button>
+      </div>
     </div>
   );
 }

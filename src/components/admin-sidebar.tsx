@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { logout } from "@/app/login/actions";
 import { adminNav } from "@/lib/nav";
@@ -19,12 +19,13 @@ export function AdminSidebar() {
       "dark flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200",
       collapsed ? "w-[4.5rem]" : "w-64",
     )}>
-      <div className={cn("flex items-start py-5", collapsed ? "justify-center px-2" : "justify-between px-5")}>
-        <div className={cn(collapsed && "sr-only")}>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-sidebar-foreground/60">
-          Hey Sage
-          </p>
-          <h1 className="mt-1 text-lg font-semibold tracking-tight">Admin</h1>
+      <div className={cn("flex items-center py-5", collapsed ? "justify-center px-2" : "justify-between px-5")}>
+        <div className={cn("flex items-center gap-2.5", collapsed && "sr-only")}>
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Sparkles className="size-4" /></span>
+          <div>
+            <h1 className="text-[17px] font-semibold tracking-[-0.035em]">HeySage</h1>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45">Operations</p>
+          </div>
         </div>
         <Button
           type="button"
@@ -46,7 +47,7 @@ export function AdminSidebar() {
               <p
                 key={item.href}
                 className={cn(
-                  "mt-5 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45",
+                  "mt-5 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45",
                   collapsed ? "sr-only" : "px-3",
                 )}
               >
@@ -62,11 +63,11 @@ export function AdminSidebar() {
               title={collapsed ? item.label : undefined}
               href={item.href}
               className={cn(
-                "flex items-center rounded-md py-2 text-sm font-medium transition-colors",
+                "flex items-center rounded-lg py-2.5 text-[13px] font-medium tracking-[-0.01em] transition-[background-color,color,box-shadow] duration-150",
                 collapsed ? "justify-center px-2" : "gap-3 px-3",
                 active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/75 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+                  ? "bg-primary text-primary-foreground shadow-sm shadow-black/25"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
               )}
             >
               <Icon className="size-4" />

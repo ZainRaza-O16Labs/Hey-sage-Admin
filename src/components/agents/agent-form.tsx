@@ -95,7 +95,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           name="name"
           value={form.name}
           onChange={(event) => update("name", event.target.value)}
-          placeholder="Sage"
+          placeholder="HeySage"
           aria-invalid={Boolean(errors.name)}
           required
         />
@@ -135,7 +135,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
           <p className="text-sm text-destructive">{errors.instructions}</p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Operational system prompt for Mastra. Tune manually, test with Sage,
+            Operational system prompt for Mastra. Tune manually, test with HeySage,
             then save.
           </p>
         )}

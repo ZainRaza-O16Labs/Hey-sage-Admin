@@ -154,7 +154,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <AiPageHeader title="AI Settings" description="Global model, retrieval, memory, voice, and execution settings." />
         <Card>
           <CardContent className="space-y-4 py-6">
@@ -171,7 +171,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <AiPageHeader
         title="AI Settings"
         description="Global model, retrieval, memory, voice, and execution settings."

@@ -55,7 +55,7 @@ export default async function AgentDetailPage({ params }: { params: RouteParams 
   const temperature = typeof config.temperature === "number" ? config.temperature : null;
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav href="/ai-management/agents" label="Agents" />
       <AiPageHeader
         title={agent.name}
