@@ -27,7 +27,7 @@ function formatDate(value: string | undefined) {
 export default async function UsersPage() {
   if (!isSupabaseAdminConfigured()) {
     return (
-      <div className="mx-auto max-w-6xl">
+      <div className="w-full">
         <Card>
           <CardHeader>
             <CardTitle>Users</CardTitle>
@@ -74,7 +74,7 @@ export default async function UsersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <Card>
         <CardHeader>
           <CardTitle>Users</CardTitle>

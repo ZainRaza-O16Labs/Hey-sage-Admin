@@ -45,7 +45,7 @@ export default async function KnowledgeBaseDetailPage({ params }: { params: Rout
   const editHref = "/ai-management/knowledge-bases/" + kb.id + "/edit";
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav href="/ai-management/knowledge-bases" label="Knowledge Bases" />
       <AiPageHeader
         title={kb.name}

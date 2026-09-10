@@ -123,7 +123,7 @@ export function AiKnowledgeBasesPageContent() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <AiPageHeader
         title="Knowledge Bases"
         description="Organize reusable knowledge and connect it to agents without duplicating documents."

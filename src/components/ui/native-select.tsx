@@ -89,7 +89,7 @@ function NativeSelect({
         aria-label={ariaLabel}
         aria-invalid={ariaInvalidBool || undefined}
         className={cn(
-          "group inline-flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none transition-colors",
+          "group inline-flex h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition-colors",
           "hover:bg-muted/50",
           "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
           "disabled:cursor-not-allowed disabled:opacity-50",

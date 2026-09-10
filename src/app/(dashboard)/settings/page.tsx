@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const host = getSupabaseProjectHost();
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="w-full">
       <Card>
         <CardHeader>
           <CardTitle>Supabase</CardTitle>

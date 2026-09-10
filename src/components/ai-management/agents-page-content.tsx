@@ -18,7 +18,7 @@ export async function AgentsPageContent() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       <AiPageHeader
         title="Agents"
         description="Manage permanent AI agents, instructions, status, and knowledge files."

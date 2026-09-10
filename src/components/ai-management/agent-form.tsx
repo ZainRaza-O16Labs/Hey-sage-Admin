@@ -1076,7 +1076,7 @@ export function AgentForm({ mode, agent }: AgentFormProps) {
       : "Create Agent";
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav
         href={
           isEdit && agentId
