@@ -60,7 +60,7 @@ export default async function AiDashboardPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <AiPageHeader
           title="Dashboard"
@@ -111,7 +111,7 @@ export default async function AiDashboardPage() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <AIStatsCard
               label="Active Agents"
               value={stats?.active ?? 0}

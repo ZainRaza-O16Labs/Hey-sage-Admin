@@ -86,7 +86,7 @@ export function AiToolsPageContent() {
   });
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <AiPageHeader
         title="Tools"
         description="Review backend-managed tools and assign them to specialized agents."

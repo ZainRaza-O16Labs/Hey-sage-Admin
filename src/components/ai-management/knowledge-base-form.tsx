@@ -611,7 +611,7 @@ export function KnowledgeBaseForm({
 
   if (isEdit && !knowledgeBase && !loadError) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <BackNav
           href={
             knowledgeBaseId
@@ -631,7 +631,7 @@ export function KnowledgeBaseForm({
 
   if (isEdit && loadError) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <BackNav href="/ai-management/knowledge-bases" label="Knowledge Bases" />
         <AiPageHeader
           title="Edit Knowledge Base"
@@ -650,7 +650,7 @@ export function KnowledgeBaseForm({
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav
         href={
           isEdit && (knowledgeBaseId ?? knowledgeBase?.id)

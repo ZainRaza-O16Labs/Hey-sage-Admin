@@ -369,7 +369,7 @@ export default function PlaygroundPage() {
       case ConversationStatus.Connecting: return "Connecting…";
       case ConversationStatus.Listening: return "Listening — speak now";
       case ConversationStatus.Thinking: return "Thinking…";
-      case ConversationStatus.Speaking: return "Sage is speaking…";
+      case ConversationStatus.Speaking: return "HeySage is speaking…";
       case ConversationStatus.Error: return voice.errorMessage ?? "Error";
       case ConversationStatus.Disconnected: return "Disconnected";
       default: return "Ready";
@@ -382,7 +382,7 @@ export default function PlaygroundPage() {
   const isVoiceActive = mode === "voice" && voice.status !== ConversationStatus.Idle && voice.status !== ConversationStatus.Disconnected && voice.status !== ConversationStatus.Error;
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <AiPageHeader
         title="Playground"
         description="Production chat through Parent/Router → permanent agent, with real RAG, tools, and persisted conversations. Text and Voice share the same conversation."
@@ -510,7 +510,7 @@ export default function PlaygroundPage() {
                 <div className="mt-2 space-y-2 border-t pt-3">
                   {voice.transcripts.filter((t) => !t.isFinal).map((t) => (
                     <div key={t.id} className={`text-sm ${t.role === SpeakerRole.User ? "text-right text-muted-foreground" : "text-foreground"}`}>
-                      <span className="text-xs opacity-50">{t.role === SpeakerRole.User ? "You" : "Sage"}: </span>
+                      <span className="text-xs opacity-50">{t.role === SpeakerRole.User ? "You" : "HeySage"}: </span>
                       <span className="italic">{t.text || "…"}</span>
                     </div>
                   ))}

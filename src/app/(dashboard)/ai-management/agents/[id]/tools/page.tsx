@@ -145,7 +145,7 @@ export default function AgentToolsPage({
 
   if (loading) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <BackNav
           href={agentId ? `/ai-management/agents/${agentId}` : "/ai-management/agents"}
           label="Agent"
@@ -161,7 +161,7 @@ export default function AgentToolsPage({
 
   if (error || !agent) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <BackNav href="/ai-management/agents" label="Agents" />
         <AiPageHeader
           title="Tools"
@@ -173,7 +173,7 @@ export default function AgentToolsPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav href={`/ai-management/agents/${agent.id}`} label="Agent" />
       <AiPageHeader
         title={`${agent.name} — Tools`}
