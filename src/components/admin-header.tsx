@@ -26,7 +26,7 @@ function pageTitle(pathname: string) {
   if (pathname.includes("/agents/") && pathname.endsWith("/tools")) return "Agent Tools";
   if (pathname.includes("/agents/") && pathname.endsWith("/knowledge")) return "Agent Knowledge";
   if (pathname.includes("/agents/") && pathname.endsWith("/preview")) return "Agent Preview";
-  if (pathname.startsWith("/ai-management/agents")) return "Agents";
+  if (pathname.startsWith("/ai-management/agents")) return "AI Agents";
   if (pathname.startsWith("/ai-management/tools")) return "Tools";
   if (pathname.startsWith("/ai-management/knowledge-bases")) return "Knowledge Bases";
   if (pathname.startsWith("/ai-management/conversations")) return "Conversations";
@@ -57,7 +57,7 @@ export function AdminHeader({ email }: { email?: string | null }) {
   const backHref = agentBackHref(pathname);
 
   return (
-    <header className="flex h-14 items-center gap-3 border-b bg-background px-4 md:px-6">
+    <header className="flex h-16 items-center gap-3 border-b bg-card px-4 md:px-7">
       {backHref ? (
         <Button
           nativeButton={false}
@@ -80,7 +80,7 @@ export function AdminHeader({ email }: { email?: string | null }) {
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetHeader className="px-5 py-5 text-left">
-            <SheetTitle>Hey Sage Admin</SheetTitle>
+            <SheetTitle>HeySage Admin</SheetTitle>
           </SheetHeader>
           <Separator />
           <nav className="flex flex-col gap-1 p-3">
@@ -104,13 +104,11 @@ export function AdminHeader({ email }: { email?: string | null }) {
           </nav>
         </SheetContent>
       </Sheet>
-      <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+      <div className="min-w-0">
+        <h2 className="truncate text-sm font-semibold">{title}</h2>
         <p className="text-xs text-muted-foreground">Internal operations</p>
       </div>
-      {email ? (
-        <p className="ml-auto truncate text-xs text-muted-foreground">{email}</p>
-      ) : null}
+      {email ? <div className="ml-auto flex items-center gap-2"><span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{email.slice(0, 1).toUpperCase()}</span><p className="hidden max-w-40 truncate text-xs text-muted-foreground lg:block">{email}</p></div> : null}
     </header>
   );
 }

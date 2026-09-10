@@ -124,9 +124,9 @@ export function AiAgentsPageContent() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <AiPageHeader
-        title="Agents"
+        title="AI Agents"
         description="Create and manage specialized AI agents with unique instructions, tools, and knowledge."
         action={
           <Button nativeButton={false} render={<Link href="/ai-management/agents/new" />}>

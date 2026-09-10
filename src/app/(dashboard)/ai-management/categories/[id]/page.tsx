@@ -44,7 +44,7 @@ export default async function CategoryDetailPage({ params }: { params: RoutePara
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <BackNav href="/ai-management/categories" label="Categories" />
       <AiPageHeader
         title={category.name}
